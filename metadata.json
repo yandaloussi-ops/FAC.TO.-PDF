@@ -1,0 +1,6 @@
+{
+  "name": "FAC en PDF",
+  "description": "Plateforme universitaire sécurisée de livres et polycopiés numériques avec lecteur protégé DRM, anti-capture et anti-téléchargement.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
