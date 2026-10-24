@@ -65,6 +65,137 @@ import {
 import { CheckCircle2, ShieldCheck, Landmark, ShieldAlert } from 'lucide-react';
 
 export default function App() {
+  // 1. جميع حالات (useState) مجمعة هنا
+  const [lang, setLang] = useState<'fr' | 'ar'>('fr');
+  const [currentTab, setCurrentTab] = useState<'home' | 'catalog' | 'library' | 'drm-info' | 'admin'>('home');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const [books, setBooks] = useState<Book[]>(() => getStoredBooks());
+  const [student, setStudent] = useState<StudentProfile>(() => getStoredStudent());
+  const [registeredStudents, setRegisteredStudents] = useState<StudentProfile[]>(() => getStoredRegisteredStudents());
+  const [professors, setProfessors] = useState<Professor[]>(() => getStoredProfessors());
+  const [drmLicenses, setDrmLicenses] = useState<DRMAccessLicense[]>(INITIAL_DRM_LICENSES);
+  const [faculties, setFaculties] = useState<FacultyItem[]>(INITIAL_FACULTIES);
+  const [payoutTransactions, setPayoutTransactions] = useState<PayoutTransaction[]>(INITIAL_PAYOUT_TRANSACTIONS);
+  const [facultyNews, setFacultyNews] = useState<FacultyNews[]>(INITIAL_FACULTY_NEWS);
+  const [professorNotices, setProfessorNotices] = useState<ProfessorNotice[]>(INITIAL_PROFESSOR_NOTICES);
+
+  const [isVisitorMode, setIsVisitorMode] = useState<boolean>(false);
+  const [authenticatedProfessor, setAuthenticatedProfessor] = useState<Professor | null>(null);
+
+  const [adminCommercialAccount, setAdminCommercialAccount] = useState<AdminCommercialAccount>(INITIAL_ADMIN_COMMERCIAL_ACCOUNT);
+  const [paymentOrders, setPaymentOrders] = useState<PaymentOrder[]>(INITIAL_PAYMENT_ORDERS);
+
+  const [catalogFacultyFilter, setCatalogFacultyFilter] = useState<string>('all');
+  const [catalogSemesterFilter, setCatalogSemesterFilter] = useState<string>('Tous');
+
+  const [selectedBookForReader, setSelectedBookForReader] = useState<Book | null>(null);
+  const [selectedBookForDetails, setSelectedBookForDetails] = useState<Book | null>(null);
+  const [selectedBookForCheckout, setSelectedBookForCheckout] = useState<Book | null>(null);
+  const [isProfessorPortalOpen, setIsProfessorPortalOpen] = useState<boolean>(false);
+  const [isProfessorLoginOpen, setIsProfessorLoginOpen] = useState<boolean>(false);
+  const [isProfessorRegisterOpen, setIsProfessorRegisterOpen] = useState<boolean>(false);
+  const [isUniversitiesModalOpen, setIsUniversitiesModalOpen] = useState<boolean>(false);
+  const [isStudentAuthOpen, setIsStudentAuthOpen] = useState<boolean>(false);
+  const [pendingCourseForStudent, setPendingCourseForStudent] = useState<Book | null>(null);
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
+  const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState<boolean>(false);
+  const [isDataProtectionModalOpen, setIsDataProtectionModalOpen] = useState<boolean>(false);
+  const [isUserGuideModalOpen, setIsUserGuideModalOpen] = useState<boolean>(false);
+  const [userGuideInitialTab, setUserGuideInitialTab] = useState<'guide_student' | 'guide_professor' | 'terms_contract' | 'cndp_privacy'>('guide_student');
+  const [globalToast, setGlobalToast] = useState<{ title: string; message: string } | null>(null);
+
+  // 2. دالة الإشعارات
+  const showToast = (title: string, message: string) => {
+    setGlobalToast({ title, message });
+    setTimeout(() => {
+      setGlobalToast(null);
+    }, 5000);
+  };
+
+  // 3. جميع الـ (useEffect) مجمعة هنا
+  useEffect(() => {
+    saveStoredBooks(books);
+  }, [books]);
+
+  useEffect(() => {
+    saveStoredProfessors(professors);
+  }, [professors]);
+
+  useEffect(() => {
+    saveStoredStudent(student);
+  }, [student]);
+
+  useEffect(() => {
+    saveStoredRegisteredStudents(registeredStudents);
+  }, [registeredStudents]);
+
+  useEffect(() => {
+    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+    document.documentElement.lang = lang;
+  }, [lang]);
+
+  useEffect(() => {
+    const handleCheckHash = () => {
+      try {
+        const hash = window.location.hash;
+        const search = window.location.search;
+        let targetId: string | null = null;
+
+        if (hash.includes('course=')) {
+          const match = hash.match(/course=([^&]+)/);
+          if (match) targetId = decodeURIComponent(match[1]);
+        } else if (hash.includes('book=')) {
+          const match = hash.match(/book=([^&]+)/);
+          if (match) targetId = decodeURIComponent(match[1]);
+        } else if (hash.startsWith('#book-') || hash.startsWith('#course-')) {
+          targetId = hash.replace('#', '');
+        }
+
+        if (!targetId && (search.includes('course=') || search.includes('book='))) {
+          const params = new URLSearchParams(search);
+          targetId = params.get('course') || params.get('book');
+        }
+
+        if (targetId) {
+          const found = books.find((b) => b.id === targetId);
+          if (found) {
+            const isRegisteredStudent = Boolean(
+              student.studentId &&
+              student.studentId.trim() !== '' &&
+              student.fullName &&
+              !student.fullName.includes('Invité') &&
+              !student.fullName.includes('زائر')
+            );
+
+            if (!isRegisteredStudent) {
+              setPendingCourseForStudent(found);
+              setIsStudentAuthOpen(true);
+              showToast(
+                lang === 'fr'
+                  ? 'Inscription & Tarif Préférentiel Étudiant'
+                  : 'مطبوع تسجيل الطالب · الأثمنة التفضيلية',
+                lang === 'fr'
+                  ? `Complétez votre inscription pour bénéficier du tarif préférentiel subventionné pour le cours "${found.title}".`
+                  : `أكمل تسجيلك للاستفادة من الأثمنة التفضيلية المدعومة لمقرر "${found.titleAr || found.title}" والدخول التلقائي للاقتناء.`
+              );
+            } else {
+              setSelectedBookForDetails(found);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Deep link error:', err);
+      }
+    };
+
+    handleCheckHash();
+    window.addEventListener('hashchange', handleCheckHash);
+    return () => window.removeEventListener('hashchange', handleCheckHash);
+  }, [books, student, lang]);
+
+  // دالة تغيير اللغة وباقي الكود يبدأ من هنا (لا تمسح ما بعدها)
+export default function App() {
   const [lang, setLang] = useState<'fr' | 'ar'>('fr');
   // Default to the attractive Home landing page!
   const [currentTab, setCurrentTab] = useState<'home' | 'catalog' | 'library' | 'drm-info' | 'admin'>('home');
