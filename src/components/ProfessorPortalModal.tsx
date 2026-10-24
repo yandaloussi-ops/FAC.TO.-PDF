@@ -78,7 +78,7 @@ export const ProfessorPortalModal: React.FC<ProfessorPortalModalProps> = ({
   const { specialties, modules } = useAcademicStructure();
 
   const [activeTab, setActiveTab] = useState<'overview' | 'upload_book' | 'notice'>('overview');
-
+const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
   // Notice state
   const [noticeMessageFr, setNoticeMessageFr] = useState('');
   const [noticeMessageAr, setNoticeMessageAr] = useState('');
@@ -192,7 +192,7 @@ export const ProfessorPortalModal: React.FC<ProfessorPortalModalProps> = ({
   };
 
   // Real PDF Upload handler for existing professor books
-  const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
+  
   const handleUploadPdfForProfBook = async (bookId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
