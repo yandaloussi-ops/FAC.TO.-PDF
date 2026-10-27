@@ -1,3 +1,4 @@
+import UploadBook from './UploadBook';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -24,7 +25,16 @@ import { MoroccanCheckoutModal } from './components/MoroccanCheckoutModal';
 import { UserGuideAndTermsModal } from './components/UserGuideAndTermsModal';
 import { Footer } from './components/Footer';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import UploadBook from './UploadBook';
+import { UserGuideAndTermsModal } from './components/UserGuideAndTermsModal';
+import { Footer } from './components/Footer';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import UploadBook from './UploadBook'; // <--- ضع السطر هنا تماماً
 
+import {
+  MOCK_BOOKS,
+  initialStudentProfile,
+  INITIAL_PROFESSORS,
 import {
   MOCK_BOOKS,
   initialStudentProfile,
@@ -1049,6 +1059,12 @@ export default function App() {
 
         {/* VIEW 5: ADMIN DASHBOARD (لوحة تحكم المدير & التحصيل التجاري) */}
         {currentTab === 'admin' && (
+     {currentTab === 'admin' && (
+  <div>
+    <UploadBook />
+    <AdminDashboard ... />
+  </div>
+)} 
           isAdminAuthenticated ? (
             <ErrorBoundary
               fallbackTitle={lang === 'fr' ? 'Console d\'Administration / لوحة المدير' : 'لوحة المدير / Console d\'Administration'}
