@@ -1058,13 +1058,9 @@ export default function App() {
         )}
 
         {/* VIEW 5: ADMIN DASHBOARD (لوحة تحكم المدير & التحصيل التجاري) */}
-        {currentTab === 'admin' && (
-     {currentTab === 'admin' && (
-  <div>
-    <UploadBook />
-    <AdminDashboard ... />
-  </div>
-)} 
+          {currentTab === 'admin' && (
+            <div>
+              <UploadBook />
           isAdminAuthenticated ? (
             <ErrorBoundary
               fallbackTitle={lang === 'fr' ? 'Console d\'Administration / لوحة المدير' : 'لوحة المدير / Console d\'Administration'}
