@@ -1,4 +1,4 @@
-import { generateAcademicPdfBlob } from './academicPdfGenerator';
+import { PDFDocument } from 'pdf-lib';
 import { Book } from '../types';
 
 /**
@@ -14,6 +14,47 @@ const STORE_NAME = 'book_pdfs';
 const blobCache = new Map<string, Blob>();
 // In-memory cache of active Object URLs
 const objectUrlCache = new Map<string, string>();
+
+/**
+ * Read the actual page count of an uploaded PDF file or blob using pdf-lib
+ */
+export async function getPdfPageCount(fileOrBlob: Blob | File | ArrayBuffer): Promise<number | null> {
+  try {
+    const arrayBuffer =
+      fileOrBlob instanceof ArrayBuffer
+        ? fileOrBlob
+        : await (fileOrBlob as Blob).arrayBuffer();
+    const pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+    const count = pdfDoc.getPageCount();
+    return count > 0 ? count : null;
+  } catch (err) {
+    console.warn('Notice extracting PDF page count via pdf-lib:', err);
+    return null;
+  }
+}
+
+/**
+ * Purge legacy auto-generated French placeholders from previous runs
+ * This ensures that authentic Arabic content and real PDF uploads take precedence
+ */
+const PURGE_KEY = 'fac_purged_french_placeholders_v4';
+export async function purgeLegacyFrenchPlaceholders(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    if (!localStorage.getItem(PURGE_KEY)) {
+      await deleteBookPdf('book-science-politique');
+      localStorage.removeItem('fac_pdf_b64_book-science-politique');
+      localStorage.setItem(PURGE_KEY, 'true');
+    }
+  } catch (err) {
+    console.warn('Notice purging legacy placeholder:', err);
+  }
+}
+
+// Auto-run purge on script load
+if (typeof window !== 'undefined') {
+  purgeLegacyFrenchPlaceholders().catch(() => {});
+}
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -33,22 +74,51 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+function base64ToBlob(base64: string, mimeType: string): Blob {
+  const parts = base64.split(';base64,');
+  const raw = window.atob(parts.length > 1 ? parts[1] : parts[0]);
+  const rawLength = raw.length;
+  const uInt8Array = new Uint8Array(rawLength);
+  for (let i = 0; i < rawLength; ++i) {
+    uInt8Array[i] = raw.charCodeAt(i);
+  }
+  return new Blob([uInt8Array], { type: mimeType });
+}
+
 /**
- * Save an uploaded PDF file/blob in IndexedDB and in-memory cache, returning an object URL
+ * Save an uploaded PDF file/blob in IndexedDB (as ArrayBuffer) and memory cache, with base64 localStorage fallback
  */
 export async function saveBookPdf(
   bookId: string,
   file: Blob | File | ArrayBuffer | Uint8Array
 ): Promise<string> {
-  const blob: Blob =
-    file instanceof Blob
-      ? file
-      : new Blob([file as BlobPart], { type: 'application/pdf' });
+  let blob: Blob;
+  let arrayBuffer: ArrayBuffer;
 
-  // Store in memory cache immediately
+  if (file instanceof Blob) {
+    blob = file;
+    arrayBuffer = await file.arrayBuffer();
+  } else if (file instanceof ArrayBuffer) {
+    arrayBuffer = file;
+    blob = new Blob([file], { type: 'application/pdf' });
+  } else {
+    arrayBuffer = file.buffer as ArrayBuffer;
+    blob = new Blob([file as BlobPart], { type: 'application/pdf' });
+  }
+
+  // 1. Store in memory cache immediately
   blobCache.set(bookId, blob);
 
-  // Revoke previous object URL if any
+  // 2. Revoke previous object URL if any
   if (objectUrlCache.has(bookId)) {
     try {
       URL.revokeObjectURL(objectUrlCache.get(bookId)!);
@@ -60,24 +130,35 @@ export async function saveBookPdf(
   const objectUrl = URL.createObjectURL(blob);
   objectUrlCache.set(bookId, objectUrl);
 
+  // 3. Store in persistent IndexedDB as ArrayBuffer (avoids DataCloneError across browsers)
   try {
     const db = await openDb();
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
-      const req = store.put(blob, bookId);
+      const req = store.put(arrayBuffer, bookId);
       req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error);
     });
   } catch (err) {
-    console.warn('Notice: PDF saved in session memory cache (IndexedDB notice):', err);
+    console.warn('Notice: PDF stored in memory, IndexedDB error:', err);
+  }
+
+  // 4. Safe base64 fallback in localStorage for persistence across iframes/reloads (< 4.5MB)
+  try {
+    if (blob.size < 4.5 * 1024 * 1024) {
+      const base64 = await blobToBase64(blob);
+      localStorage.setItem(`fac_pdf_b64_${bookId}`, base64);
+    }
+  } catch {
+    // Quota reached, ignore
   }
 
   return objectUrl;
 }
 
 /**
- * Retrieve a stored PDF blob URL for a book (checks memory cache, then IndexedDB,
+ * Retrieve a stored PDF blob URL for a book (checks memory cache, IndexedDB, localStorage fallback,
  * or auto-generates a certified academic multi-page PDF if book data is provided)
  */
 export async function loadBookPdf(
@@ -100,7 +181,7 @@ export async function loadBookPdf(
   // 3. Check persistent IndexedDB
   try {
     const db = await openDb();
-    const blob = await new Promise<Blob | null>((resolve, reject) => {
+    const stored = await new Promise<ArrayBuffer | Blob | null>((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const store = tx.objectStore(STORE_NAME);
       const req = store.get(bookId);
@@ -108,27 +189,38 @@ export async function loadBookPdf(
       req.onerror = () => reject(req.error);
     });
 
-    if (blob) {
+    if (stored) {
+      const blob = stored instanceof Blob ? stored : new Blob([stored], { type: 'application/pdf' });
       blobCache.set(bookId, blob);
       const objectUrl = URL.createObjectURL(blob);
       objectUrlCache.set(bookId, objectUrl);
       return objectUrl;
     }
   } catch (err) {
-    console.warn(`Notice reading PDF for book ${bookId}:`, err);
+    console.warn(`Notice reading PDF for book ${bookId} from IndexedDB:`, err);
   }
 
-  // 4. Auto-generate a real multi-page certified academic PDF for instant genuine reading
-  if (bookFallback && bookFallback.title) {
-    try {
-      const generatedBlob = await generateAcademicPdfBlob(bookFallback);
-      const generatedUrl = await saveBookPdf(bookId, generatedBlob);
-      return generatedUrl;
-    } catch (genErr) {
-      console.warn('Could not generate academic PDF fallback:', genErr);
+  // 4. Check localStorage base64 fallback
+  try {
+    const b64 = localStorage.getItem(`fac_pdf_b64_${bookId}`);
+    if (b64) {
+      const blob = base64ToBlob(b64, 'application/pdf');
+      blobCache.set(bookId, blob);
+      const objectUrl = URL.createObjectURL(blob);
+      objectUrlCache.set(bookId, objectUrl);
+      return objectUrl;
     }
+  } catch (err) {
+    console.warn(`Notice reading PDF from localStorage for ${bookId}:`, err);
   }
 
+  // 5. Existing valid external or data URL (if uploaded by admin/prof or set)
+  if (bookFallback?.pdfUrl && (bookFallback.pdfUrl.startsWith('data:') || bookFallback.pdfUrl.startsWith('http') || bookFallback.pdfUrl.startsWith('blob:'))) {
+    return bookFallback.pdfUrl;
+  }
+
+  // Do not generate artificial French placeholders. Return null so the genuine Arabic academic chapters
+  // or the prominent upload interface are presented clearly to the user.
   return null;
 }
 
@@ -162,6 +254,10 @@ export async function deleteBookPdf(bookId: string): Promise<void> {
     objectUrlCache.delete(bookId);
   }
   blobCache.delete(bookId);
+
+  try {
+    localStorage.removeItem(`fac_pdf_b64_${bookId}`);
+  } catch {}
 
   try {
     const db = await openDb();

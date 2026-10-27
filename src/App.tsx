@@ -65,11 +65,12 @@ import {
 import { CheckCircle2, ShieldCheck, Landmark, ShieldAlert } from 'lucide-react';
 
 export default function App() {
-  // 1. جميع حالات (useState) مجمعة هنا
   const [lang, setLang] = useState<'fr' | 'ar'>('fr');
+  // Default to the attractive Home landing page!
   const [currentTab, setCurrentTab] = useState<'home' | 'catalog' | 'library' | 'drm-info' | 'admin'>('home');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  // Primary data state with persistent storage (Fix for Point 5)
   const [books, setBooks] = useState<Book[]>(() => getStoredBooks());
   const [student, setStudent] = useState<StudentProfile>(() => getStoredStudent());
   const [registeredStudents, setRegisteredStudents] = useState<StudentProfile[]>(() => getStoredRegisteredStudents());
@@ -80,40 +81,10 @@ export default function App() {
   const [facultyNews, setFacultyNews] = useState<FacultyNews[]>(INITIAL_FACULTY_NEWS);
   const [professorNotices, setProfessorNotices] = useState<ProfessorNotice[]>(INITIAL_PROFESSOR_NOTICES);
 
+  // Visitor mode pricing state (Requirement 9)
   const [isVisitorMode, setIsVisitorMode] = useState<boolean>(false);
-  const [authenticatedProfessor, setAuthenticatedProfessor] = useState<Professor | null>(null);
 
-  const [adminCommercialAccount, setAdminCommercialAccount] = useState<AdminCommercialAccount>(INITIAL_ADMIN_COMMERCIAL_ACCOUNT);
-  const [paymentOrders, setPaymentOrders] = useState<PaymentOrder[]>(INITIAL_PAYMENT_ORDERS);
-
-  const [catalogFacultyFilter, setCatalogFacultyFilter] = useState<string>('all');
-  const [catalogSemesterFilter, setCatalogSemesterFilter] = useState<string>('Tous');
-
-  const [selectedBookForReader, setSelectedBookForReader] = useState<Book | null>(null);
-  const [selectedBookForDetails, setSelectedBookForDetails] = useState<Book | null>(null);
-  const [selectedBookForCheckout, setSelectedBookForCheckout] = useState<Book | null>(null);
-  const [isProfessorPortalOpen, setIsProfessorPortalOpen] = useState<boolean>(false);
-  const [isProfessorLoginOpen, setIsProfessorLoginOpen] = useState<boolean>(false);
-  const [isProfessorRegisterOpen, setIsProfessorRegisterOpen] = useState<boolean>(false);
-  const [isUniversitiesModalOpen, setIsUniversitiesModalOpen] = useState<boolean>(false);
-  const [isStudentAuthOpen, setIsStudentAuthOpen] = useState<boolean>(false);
-  const [pendingCourseForStudent, setPendingCourseForStudent] = useState<Book | null>(null);
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
-  const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState<boolean>(false);
-  const [isDataProtectionModalOpen, setIsDataProtectionModalOpen] = useState<boolean>(false);
-  const [isUserGuideModalOpen, setIsUserGuideModalOpen] = useState<boolean>(false);
-  const [userGuideInitialTab, setUserGuideInitialTab] = useState<'guide_student' | 'guide_professor' | 'terms_contract' | 'cndp_privacy'>('guide_student');
-  const [globalToast, setGlobalToast] = useState<{ title: string; message: string } | null>(null);
-
-  // 2. دالة الإشعارات
-  const showToast = (title: string, message: string) => {
-    setGlobalToast({ title, message });
-    setTimeout(() => {
-      setGlobalToast(null);
-    }, 5000);
-  };
-
-  // 3. جميع الـ (useEffect) مجمعة هنا
+  // Sync state to localStorage whenever modified
   useEffect(() => {
     saveStoredBooks(books);
   }, [books]);
@@ -130,11 +101,41 @@ export default function App() {
     saveStoredRegisteredStudents(registeredStudents);
   }, [registeredStudents]);
 
+  // Professor Private Authentication State (Gatekeeping by Institutional Email)
+  const [authenticatedProfessor, setAuthenticatedProfessor] = useState<Professor | null>(null);
+
+  // Commercial Payment & Admin Collection State
+  const [adminCommercialAccount, setAdminCommercialAccount] = useState<AdminCommercialAccount>(INITIAL_ADMIN_COMMERCIAL_ACCOUNT);
+  const [paymentOrders, setPaymentOrders] = useState<PaymentOrder[]>(INITIAL_PAYMENT_ORDERS);
+
+  // Direct Filter state for Digital Library Catalog
+  const [catalogFacultyFilter, setCatalogFacultyFilter] = useState<string>('all');
+  const [catalogSemesterFilter, setCatalogSemesterFilter] = useState<string>('Tous');
+
+  // Modals & Reader state
+  const [selectedBookForReader, setSelectedBookForReader] = useState<Book | null>(null);
+  const [selectedBookForDetails, setSelectedBookForDetails] = useState<Book | null>(null);
+  const [selectedBookForCheckout, setSelectedBookForCheckout] = useState<Book | null>(null);
+  const [isProfessorPortalOpen, setIsProfessorPortalOpen] = useState<boolean>(false);
+  const [isProfessorLoginOpen, setIsProfessorLoginOpen] = useState<boolean>(false);
+  const [isProfessorRegisterOpen, setIsProfessorRegisterOpen] = useState<boolean>(false);
+  const [isUniversitiesModalOpen, setIsUniversitiesModalOpen] = useState<boolean>(false);
+  const [isStudentAuthOpen, setIsStudentAuthOpen] = useState<boolean>(false);
+  const [pendingCourseForStudent, setPendingCourseForStudent] = useState<Book | null>(null);
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
+  const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState<boolean>(false);
+  const [isDataProtectionModalOpen, setIsDataProtectionModalOpen] = useState<boolean>(false);
+  const [isUserGuideModalOpen, setIsUserGuideModalOpen] = useState<boolean>(false);
+  const [userGuideInitialTab, setUserGuideInitialTab] = useState<'guide_student' | 'guide_professor' | 'terms_contract' | 'cndp_privacy'>('guide_student');
+  const [globalToast, setGlobalToast] = useState<{ title: string; message: string } | null>(null);
+
+  // Sync RTL / LTR direction on document
   useEffect(() => {
     document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
     document.documentElement.lang = lang;
   }, [lang]);
 
+  // Deep linking for shared course links: Directs student to registration first to unlock preferential rate, then automatic entry to acquisition
   useEffect(() => {
     const handleCheckHash = () => {
       try {
@@ -160,6 +161,7 @@ export default function App() {
         if (targetId) {
           const found = books.find((b) => b.id === targetId);
           if (found) {
+            // Check if student has registered their student credentials
             const isRegisteredStudent = Boolean(
               student.studentId &&
               student.studentId.trim() !== '' &&
@@ -169,6 +171,7 @@ export default function App() {
             );
 
             if (!isRegisteredStudent) {
+              // Direct student to registration form first to benefit from preferential rates
               setPendingCourseForStudent(found);
               setIsStudentAuthOpen(true);
               showToast(
@@ -180,6 +183,7 @@ export default function App() {
                   : `أكمل تسجيلك للاستفادة من الأثمنة التفضيلية المدعومة لمقرر "${found.titleAr || found.title}" والدخول التلقائي للاقتناء.`
               );
             } else {
+              // Student already enrolled: proceed directly to book
               setSelectedBookForDetails(found);
             }
           }
@@ -192,9 +196,143 @@ export default function App() {
     handleCheckHash();
     window.addEventListener('hashchange', handleCheckHash);
     return () => window.removeEventListener('hashchange', handleCheckHash);
-  }, [books, student, lang]);
+  }, [books, student]);
 
-  // دالة تغيير اللغة وباقي الكود يبدأ من هنا (لا تمسح ما بعدها)
+  // Browser History & Hardware/Software Back Button Navigation Manager
+  // Protects the user from accidentally exiting the application on pressing back
+  useEffect(() => {
+    // Ensure base history state is established on load
+    try {
+      if (!window.history.state) {
+        window.history.replaceState({ app: 'fac-en-pdf', tab: currentTab }, '', window.location.href);
+      }
+    } catch {}
+
+    const handlePopState = () => {
+      // 1. If Reader is open, close reader and return to catalog/library
+      if (selectedBookForReader) {
+        setSelectedBookForReader(null);
+        return;
+      }
+      // 2. If Checkout is open, close checkout
+      if (selectedBookForCheckout) {
+        setSelectedBookForCheckout(null);
+        return;
+      }
+      // 3. If Details modal is open, close details
+      if (selectedBookForDetails) {
+        setSelectedBookForDetails(null);
+        return;
+      }
+      // 4. If Professor Portal is open, close portal
+      if (isProfessorPortalOpen) {
+        setIsProfessorPortalOpen(false);
+        return;
+      }
+      // 5. If other modals are open, close them
+      if (isStudentAuthOpen) {
+        setIsStudentAuthOpen(false);
+        setPendingCourseForStudent(null);
+        return;
+      }
+      if (isUniversitiesModalOpen) {
+        setIsUniversitiesModalOpen(false);
+        return;
+      }
+      if (isUserGuideModalOpen) {
+        setIsUserGuideModalOpen(false);
+        return;
+      }
+      if (isAdminAuthModalOpen) {
+        setIsAdminAuthModalOpen(false);
+        return;
+      }
+      if (isDataProtectionModalOpen) {
+        setIsDataProtectionModalOpen(false);
+        return;
+      }
+      if (isProfessorLoginOpen) {
+        setIsProfessorLoginOpen(false);
+        return;
+      }
+      if (isProfessorRegisterOpen) {
+        setIsProfessorRegisterOpen(false);
+        return;
+      }
+      // 6. If currently on a sub-tab (catalog, library, drm-info, admin), navigate back to Home
+      if (currentTab !== 'home') {
+        setCurrentTab('home');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [
+    selectedBookForReader,
+    selectedBookForCheckout,
+    selectedBookForDetails,
+    isProfessorPortalOpen,
+    isStudentAuthOpen,
+    isUniversitiesModalOpen,
+    isUserGuideModalOpen,
+    isAdminAuthModalOpen,
+    isDataProtectionModalOpen,
+    isProfessorLoginOpen,
+    isProfessorRegisterOpen,
+    currentTab,
+  ]);
+
+  const handleOpenReader = (book: Book) => {
+    setSelectedBookForDetails(null);
+    setSelectedBookForReader(book);
+    try {
+      window.history.pushState({ modal: 'reader', bookId: book.id }, '', '#reader');
+    } catch {}
+  };
+
+  const handleCloseReader = () => {
+    setSelectedBookForReader(null);
+    try {
+      if (window.location.hash === '#reader') {
+        window.history.back();
+      }
+    } catch {}
+  };
+
+  const handleOpenDetails = (book: Book) => {
+    setSelectedBookForDetails(book);
+    try {
+      window.history.pushState({ modal: 'details', bookId: book.id }, '', `#book-${book.id}`);
+    } catch {}
+  };
+
+  const handleCloseDetails = () => {
+    setSelectedBookForDetails(null);
+    try {
+      if (window.location.hash.startsWith('#book-')) {
+        window.history.back();
+      }
+    } catch {}
+  };
+
+  const handleOpenCheckout = (book: Book) => {
+    setSelectedBookForCheckout(book);
+    try {
+      window.history.pushState({ modal: 'checkout', bookId: book.id }, '', '#checkout');
+    } catch {}
+  };
+
+  const handleCloseCheckout = () => {
+    setSelectedBookForCheckout(null);
+    try {
+      if (window.location.hash === '#checkout') {
+        window.history.back();
+      }
+    } catch {}
+  };
+
   const handleToggleLang = () => {
     setLang((prev) => (prev === 'fr' ? 'ar' : 'fr'));
   };
@@ -537,6 +675,43 @@ export default function App() {
     );
   };
 
+  // Update Book Attached PDF & Page Count in Central Catalog
+  const handleUpdateBookPdf = (
+    bookId: string,
+    pdfUrl: string,
+    totalPages?: number,
+    fileName?: string
+  ) => {
+    setBooks((prev) =>
+      prev.map((b) => {
+        if (b.id === bookId) {
+          return {
+            ...b,
+            hasPdf: true,
+            pdfUrl,
+            totalPages: totalPages && totalPages > 0 ? totalPages : b.totalPages,
+            pdfFileName: fileName || b.pdfFileName,
+          };
+        }
+        return b;
+      })
+    );
+
+    if (selectedBookForReader && selectedBookForReader.id === bookId) {
+      setSelectedBookForReader((prev) =>
+        prev
+          ? {
+              ...prev,
+              hasPdf: true,
+              pdfUrl,
+              totalPages: totalPages && totalPages > 0 ? totalPages : prev.totalPages,
+              pdfFileName: fileName || prev.pdfFileName,
+            }
+          : null
+      );
+    }
+  };
+
   // ADMIN: Update Book Price
   const handleUpdateBookPrice = (bookId: string, newPrice: number) => {
     setBooks((prev) =>
@@ -823,9 +998,9 @@ export default function App() {
                 onSelectFaculty={setCatalogFacultyFilter}
                 selectedSemester={catalogSemesterFilter}
                 onSelectSemester={setCatalogSemesterFilter}
-                onOpenDetails={(book) => setSelectedBookForDetails(book)}
-                onOpenReader={(book) => setSelectedBookForReader(book)}
-                onQuickBuy={(book) => setSelectedBookForCheckout(book)}
+                onOpenDetails={handleOpenDetails}
+                onOpenReader={handleOpenReader}
+                onQuickBuy={handleOpenCheckout}
                 onReturnHome={() => setCurrentTab('home')}
                 isVisitorMode={isVisitorMode}
                 onToggleVisitorMode={() => setIsVisitorMode((prev) => !prev)}
@@ -845,10 +1020,10 @@ export default function App() {
               student={student}
               allBooks={books}
               paymentOrders={paymentOrders}
-              onOpenReader={(book) => setSelectedBookForReader(book)}
+              onOpenReader={handleOpenReader}
               onExploreCatalog={() => setCurrentTab('catalog')}
               onRedeemCode={handleRedeemCode}
-              onBuyBook={(book) => setSelectedBookForCheckout(book)}
+              onBuyBook={handleOpenCheckout}
               onEditProfile={() => setIsStudentAuthOpen(true)}
               onReturnHome={() => setCurrentTab('home')}
               lang={lang}
@@ -884,6 +1059,7 @@ export default function App() {
                 onAddBook={handleAddBook}
                 onUpdateBookPrice={handleUpdateBookPrice}
                 onDeleteBook={handleDeleteBook}
+                onUpdateBookPdf={handleUpdateBookPdf}
                 professors={professors}
                 onAddProfessor={handleAddProfessor}
                 onExecutePayout={handleExecutePayout}
@@ -950,11 +1126,8 @@ export default function App() {
           student={student}
           isAcquired={student.acquiredBookIds.includes(selectedBookForDetails.id)}
           adminRib={adminCommercialAccount.bankRib}
-          onClose={() => setSelectedBookForDetails(null)}
-          onOpenReader={(book) => {
-            setSelectedBookForDetails(null);
-            setSelectedBookForReader(book);
-          }}
+          onClose={handleCloseDetails}
+          onOpenReader={handleOpenReader}
           onAcquire={handleAcquireBook}
           lang={lang}
         />
@@ -964,7 +1137,7 @@ export default function App() {
       {selectedBookForReader && (
         <ErrorBoundary
           fallbackTitle={lang === 'fr' ? 'Lecteur In-App Sécurisé / القارئ الرقمي المشفر' : 'القارئ الرقمي المشفر / Lecteur In-App'}
-          onReset={() => setSelectedBookForReader(null)}
+          onReset={handleCloseReader}
         >
           <SecureReader
             book={selectedBookForReader}
@@ -977,8 +1150,9 @@ export default function App() {
                   selectedBookForReader.author.includes(authenticatedProfessor.fullName) ||
                   authenticatedProfessor.fullName.includes(selectedBookForReader.author)))
             }
-            onClose={() => setSelectedBookForReader(null)}
+            onClose={handleCloseReader}
             onAcquireBook={handleAcquireBook}
+            onUpdateBookPdf={handleUpdateBookPdf}
             lang={lang}
           />
         </ErrorBoundary>
@@ -1019,7 +1193,8 @@ export default function App() {
                   : `أصبح مقررك "${newBook.title}" متاحاً الآن في المعرض العام للمكتبة.`
               );
             }}
-            onOpenReader={(book) => setSelectedBookForReader(book)}
+            onUpdateBookPdf={handleUpdateBookPdf}
+            onOpenReader={handleOpenReader}
             onLogout={handleProfessorLogout}
             onClose={() => setIsProfessorPortalOpen(false)}
             lang={lang}
@@ -1100,10 +1275,10 @@ export default function App() {
           book={selectedBookForCheckout}
           student={student}
           adminRib={adminCommercialAccount.bankRib}
-          onClose={() => setSelectedBookForCheckout(null)}
+          onClose={handleCloseCheckout}
           onSuccess={(method, details, drmCode) => {
             handleAcquireBook(selectedBookForCheckout.id, method, details, drmCode);
-            setSelectedBookForCheckout(null);
+            handleCloseCheckout();
           }}
           lang={lang}
         />

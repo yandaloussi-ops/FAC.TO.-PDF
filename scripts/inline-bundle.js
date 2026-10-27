@@ -46,6 +46,10 @@ try {
     fs.mkdirSync(singleFileDir, { recursive: true });
   }
   fs.writeFileSync(path.join(singleFileDir, 'index.html'), html, 'utf-8');
+  const workerSrcPath = path.join(distDir, 'pdf.worker.min.mjs');
+  if (fs.existsSync(workerSrcPath)) {
+    fs.copyFileSync(workerSrcPath, path.join(singleFileDir, 'pdf.worker.min.mjs'));
+  }
   console.log('✅ Also created single_file/index.html ready to copy or download');
 } catch (err) {
   console.error('Error bundling single file:', err);

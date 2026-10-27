@@ -142,26 +142,37 @@ export function generateDefaultCoverSvg(title: string, author: string, facultyCo
 
 // 1. Books Storage
 export const getStoredBooks = (): Book[] => {
+  const enhancedMocks = MOCK_BOOKS.map((b) => ({
+    ...b,
+    publicPriceMAD: b.publicPriceMAD || (b.isFree ? 0 : Math.round(b.priceMAD * 1.5)),
+    coverImage: b.coverImage.startsWith('/src/')
+      ? b.coverImage.replace('/src/', '/')
+      : b.coverImage,
+  }));
+
   const stored = safeGet<Book[] | null>(KEYS.BOOKS, null);
   if (!stored || !Array.isArray(stored) || stored.length === 0) {
-    // Ensure all mock books have non-empty valid covers and public prices
-    const enhancedMocks = MOCK_BOOKS.map((b) => ({
-      ...b,
-      publicPriceMAD: b.publicPriceMAD || (b.isFree ? 0 : Math.round(b.priceMAD * 1.5)),
-      coverImage: b.coverImage.startsWith('/src/')
-        ? b.coverImage.replace('/src/', '/')
-        : b.coverImage,
-    }));
     safeSet(KEYS.BOOKS, enhancedMocks);
     return enhancedMocks;
   }
+
+  // Ensure any newly added mock books (e.g. book-science-politique) are seamlessly merged
+  const storedIds = new Set(stored.map((b) => b.id));
+  const missingMocks = enhancedMocks.filter((b) => !storedIds.has(b.id));
+  if (missingMocks.length > 0) {
+    const merged = [...missingMocks, ...stored];
+    safeSet(KEYS.BOOKS, merged);
+    return merged;
+  }
+
   return stored;
 };
 
 export const saveStoredBooks = (books: Book[]): void => {
-  // Strip temporary blob: URLs from persistent localStorage to avoid stale revokes
+  // Strip temporary blob: URLs from persistent localStorage to avoid stale revokes, but preserve hasPdf flag
   const cleanBooks = books.map((b) => ({
     ...b,
+    hasPdf: Boolean(b.hasPdf || b.pdfUrl),
     pdfUrl: b.pdfUrl && b.pdfUrl.startsWith('blob:') ? undefined : b.pdfUrl,
   }));
 
@@ -235,12 +246,14 @@ export const getStoredCurrentStudent = (): StudentProfile => {
     safeSet(KEYS.CURRENT_STUDENT, defaultStudent);
     return defaultStudent;
   }
+  const acquired = Array.isArray(stored.acquiredBookIds)
+    ? Array.from(new Set([...initialStudentProfile.acquiredBookIds, ...stored.acquiredBookIds]))
+    : initialStudentProfile.acquiredBookIds;
+
   return {
     ...initialStudentProfile,
     ...stored,
-    acquiredBookIds: Array.isArray(stored.acquiredBookIds)
-      ? stored.acquiredBookIds
-      : initialStudentProfile.acquiredBookIds,
+    acquiredBookIds: acquired,
     bookProgress: stored.bookProgress && typeof stored.bookProgress === 'object' ? stored.bookProgress : {},
   };
 };

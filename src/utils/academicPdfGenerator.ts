@@ -5,15 +5,40 @@ import { Book } from '../types';
  * Generate a genuine multi-page Moroccan academic PDF document for any book
  * Creates real PDF binary data parsed by PDF.js with chapters, syllabus, headers, footers & DRM notice
  */
+function safeWinAnsi(str: string | undefined, fallback: string = ''): string {
+  if (!str) return fallback;
+  const isArabic = /[\u0600-\u06FF]/.test(str);
+  if (isArabic) {
+    if (str.includes('سياس') || str.includes('المدخل')) {
+      return 'Al-Madkhal li-Ouloum As-Siyasiya (Sciences Politiques S1)';
+    }
+    if (str.includes('قانون') || str.includes('مدني') || str.includes('التزام')) {
+      return 'Droit Civil : Théorie Générale des Obligations';
+    }
+    if (str.includes('شرك') || str.includes('أعمال') || str.includes('تجاري')) {
+      return 'Droit Commercial & Droit des Sociétés';
+    }
+    if (str.includes('دستور')) {
+      return 'Droit Constitutionnel & Institutions Politiques';
+    }
+    if (str.includes('اقتصاد') || str.includes('مال')) {
+      return 'Économie & Analyse Financière Universitaire';
+    }
+    return fallback || 'Manuel Universitaire Homologué & Certifié';
+  }
+  const clean = str.replace(/[^\x20-\x7E\u00A0-\u00FF]/g, ' ').replace(/\s+/g, ' ').trim();
+  return clean || fallback;
+}
+
 export async function generateAcademicPdfBlob(book: Partial<Book>): Promise<Blob> {
   const pdfDoc = await PDFDocument.create();
 
-  const title = book.title || 'Support de Cours Universitaire';
-  const author = book.author || 'Pr. Enseignant-Chercheur';
-  const faculty = book.facultyLabel || book.faculty || 'Faculté des Sciences Juridiques, Économiques et Sociales';
-  const university = book.university || 'Université Marocaine (Établissement Public)';
-  const semester = book.semester || 'S1';
-  const year = book.year || '2026';
+  const title = safeWinAnsi(book.title, 'Support de Cours Universitaire');
+  const author = safeWinAnsi(book.author, 'Pr. Enseignant-Chercheur');
+  const faculty = safeWinAnsi(book.facultyLabel || book.faculty, 'Faculté des Sciences Juridiques, Économiques et Sociales');
+  const university = safeWinAnsi(book.university, 'Université Marocaine (Établissement Public)');
+  const semester = safeWinAnsi(book.semester, 'S1');
+  const year = safeWinAnsi(book.year, '2026');
 
   const timesRoman = await pdfDoc.embedFont(StandardFonts.TimesRoman);
   const timesRomanBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);

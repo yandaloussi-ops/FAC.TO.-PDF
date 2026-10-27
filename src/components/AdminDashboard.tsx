@@ -24,7 +24,7 @@ import {
   saveStoredAdminPin,
   generateDefaultCoverSvg,
 } from '../utils/storage';
-import { saveBookPdf } from '../utils/pdfStorage';
+import { saveBookPdf, getPdfPageCount } from '../utils/pdfStorage';
 import { useAcademicStructure, registerDynamicAcademicUnit } from '../utils/academicStructureStorage';
 import {
   BookOpen,
@@ -46,6 +46,7 @@ import {
   Percent,
   X,
   FileCheck,
+  FileText,
   ExternalLink,
   Landmark,
   Receipt,
@@ -71,6 +72,7 @@ interface AdminDashboardProps {
   onAddBook: (newBook: Book) => void;
   onUpdateBookPrice: (bookId: string, newPrice: number) => void;
   onDeleteBook: (bookId: string) => void;
+  onUpdateBookPdf?: (bookId: string, pdfUrl: string, totalPages?: number, fileName?: string) => void;
   professors: Professor[];
   onAddProfessor: (newProf: Professor) => void;
   onExecutePayout: (payout: PayoutTransaction) => void;
@@ -99,6 +101,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onAddBook,
   onUpdateBookPrice,
   onDeleteBook,
+  onUpdateBookPdf,
   professors,
   onAddProfessor,
   onExecutePayout,
@@ -213,11 +216,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         return;
       }
       try {
-        await saveBookPdf(bookId, file);
+        const objectUrl = await saveBookPdf(bookId, file);
+        const pageCount = await getPdfPageCount(file);
+        if (onUpdateBookPdf) {
+          onUpdateBookPdf(bookId, objectUrl, pageCount || undefined, file.name);
+        }
         setAdminPdfToast(
           lang === 'fr'
-            ? `Fichier PDF "${file.name}" enregistré et indexé avec succès dans la mémoire locale sécurisée ! (${(file.size / (1024 * 1024)).toFixed(1)} Mo)`
-            : `تم رفع ملف "${file.name}" وتخزينه في الذاكرة المحلية المشفرة للمتصفح بنجاح لهذا المقرر!`
+            ? `Fichier PDF "${file.name}" (${pageCount ? `${pageCount} pages, ` : ''}${(file.size / (1024 * 1024)).toFixed(1)} Mo) enregistré et indexé avec succès !`
+            : `تم رفع ملف "${file.name}" (${pageCount ? `${pageCount} صفحة، ` : ''}${(file.size / (1024 * 1024)).toFixed(1)} ميغابايت) وتخزينه بنجاح وإتاحته للطلبة!`
         );
         setTimeout(() => setAdminPdfToast(null), 5000);
       } catch (err) {
@@ -281,7 +288,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Handle Add Book
   const handleSaveBook = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newBookTitle.trim() || !newBookAuthor.trim()) return;
+    const effectiveTitle = newBookTitle.trim() || newBookTitleAr.trim();
+    const effectiveTitleAr = newBookTitleAr.trim() || newBookTitle.trim();
+    if (!effectiveTitle || !newBookAuthor.trim()) return;
     setIsSavingBook(true);
 
     try {
@@ -290,15 +299,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const bookId = `book-${Date.now()}`;
 
       let storedPdfUrl: string | undefined = undefined;
+      let detectedPages: number | null = null;
       if (newBookPdfFile) {
         try {
+          detectedPages = await getPdfPageCount(newBookPdfFile);
           storedPdfUrl = await saveBookPdf(bookId, newBookPdfFile);
         } catch (pdfErr) {
           console.warn('Could not save PDF binary, continuing with metadata:', pdfErr);
         }
       }
 
-      const parsedPages = parseInt(newBookPages, 10) || 12;
+      const parsedPages = detectedPages || parseInt(newBookPages, 10) || 12;
 
       const finalSpecialty = isCustomNewBookSpecialty && customNewBookSpecialtyFr.trim()
         ? customNewBookSpecialtyFr.trim()
@@ -328,10 +339,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         });
       }
 
+      const isArabicBook = Boolean(newBookTitleAr.trim() || /[\u0600-\u06FF]/.test(effectiveTitle));
+
       const bookItem: Book = {
         id: bookId,
-        title: newBookTitle.trim(),
-        titleAr: newBookTitleAr.trim() || undefined,
+        title: effectiveTitle,
+        titleAr: effectiveTitleAr !== effectiveTitle ? effectiveTitleAr : (newBookTitleAr.trim() || undefined),
         author: newBookAuthor.trim(),
         authorTitle: 'Enseignant-Chercheur Universitaire',
         university: `${chosenUniv.nameFr} (${chosenUniv.code})`,
@@ -343,46 +356,77 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         moduleAr: finalModuleAr,
         semester: newBookSemester,
         year: '2026',
-        edition: 'Édition Académique Validée & Certifiée',
+        edition: isArabicBook ? 'طبعة أكاديمية معتمدة ومحمية رقمياً' : 'Édition Académique Validée & Certifiée',
         totalPages: parsedPages,
         priceMAD: bookPrice,
         publicPriceMAD: Math.round(bookPrice * 1.5),
         isFree: bookPrice <= 0,
+        hasPdf: Boolean(newBookPdfFile || storedPdfUrl),
         pdfUrl: storedPdfUrl,
-        coverImage: newBookCoverImage || generateDefaultCoverSvg(newBookTitle.trim(), newBookAuthor.trim(), newBookFaculty),
+        pdfFileName: newBookFileName || undefined,
+        coverImage: newBookCoverImage || generateDefaultCoverSvg(effectiveTitle, newBookAuthor.trim(), newBookFaculty),
         isbn: `978-9954-${Math.floor(10 + Math.random() * 89)}-${Math.floor(100 + Math.random() * 899)}-1`,
-        description: newBookDesc.trim() || 'Manuel universitaire officiel protégé par licence DRM in-app.',
+        description: newBookDesc.trim() || (isArabicBook ? 'مقرر ومطبوع جامعي رسمي معتمد ومحمي بترخيص القراءة الرقمية داخل المنصة.' : 'Manuel universitaire officiel protégé par licence DRM in-app.'),
         rating: 5.0,
         reviewsCount: 1,
         sampleMaxPage: 2,
-        tags: [finalModule, finalSpecialty, newBookFaculty, newBookSemester, 'Nouveau'].filter(Boolean) as string[],
-        chapters: [
-          { id: 'c1', title: 'Chapitre 1 : Introduction Fondamentale & Notions Clés', startPage: 1, pageCount: Math.max(1, Math.floor(parsedPages / 2)) },
-          { id: 'c2', title: 'Chapitre 2 : Développements Pratiques & Cas d\'Étude', startPage: Math.max(2, Math.floor(parsedPages / 2) + 1), pageCount: Math.max(1, parsedPages - Math.floor(parsedPages / 2)) },
-        ],
-        pages: [
-          {
-            pageNumber: 1,
-            chapterTitle: 'Chapitre 1 : Introduction Fondamentale & Notions Clés',
-            header: `FAC en PDF · ${newBookTitle.trim()} · Cours Protégé`,
-            content: [
-              'Section 1.1 — Définition et cadre théorique général',
-              `Ce document constitue le support de cours officiel pour le module dispensé par ${newBookAuthor.trim()}.`,
-              'Toute reproduction, diffusion ou capture d\'écran de ce document est formellement prohibée conformément à la loi relative aux droits d\'auteur et droits voisins.',
-              'L\'étudiant détenteur de la licence est seul autorisé à consulter ce polycopié au sein du lecteur sécurisé FAC en PDF.',
+        tags: [finalModule, finalSpecialty, newBookFaculty, newBookSemester, isArabicBook ? 'مقرر جديد' : 'Nouveau'].filter(Boolean) as string[],
+        chapters: isArabicBook
+          ? [
+              { id: 'c1', title: 'الفصل 1 : المفاهيم التأسيسية والإطار النظري للمقرر', startPage: 1, pageCount: Math.max(1, Math.floor(parsedPages / 2)) },
+              { id: 'c2', title: 'الفصل 2 : التطبيقات والتحليلات المنهجية المتقدمة', startPage: Math.max(2, Math.floor(parsedPages / 2) + 1), pageCount: Math.max(1, parsedPages - Math.floor(parsedPages / 2)) },
+            ]
+          : [
+              { id: 'c1', title: 'Chapitre 1 : Introduction Fondamentale & Notions Clés', startPage: 1, pageCount: Math.max(1, Math.floor(parsedPages / 2)) },
+              { id: 'c2', title: 'Chapitre 2 : Développements Pratiques & Cas d\'Étude', startPage: Math.max(2, Math.floor(parsedPages / 2) + 1), pageCount: Math.max(1, parsedPages - Math.floor(parsedPages / 2)) },
             ],
-            keyPoints: ['Manuel officiel vérifié par le conseil pédagogique.', 'Licence unique incessible.'],
-          },
-          {
-            pageNumber: 2,
-            chapterTitle: 'Chapitre 1 : Introduction Fondamentale & Notions Clés',
-            header: `FAC en PDF · ${newBookTitle.trim()} · Cours Protégé`,
-            content: [
-              'Section 1.2 — Notions méthodologiques et terminologie appliquée',
-              'La maîtrise de cette discipline impose une rigueur terminologique constante. Les concepts abordés dans ce module feront l\'objet d\'applications lors des séances de travaux dirigés (TD).',
+        pages: isArabicBook
+          ? [
+              {
+                pageNumber: 1,
+                chapterTitle: 'الفصل 1 : المفاهيم التأسيسية والإطار النظري للمقرر',
+                header: `FAC en PDF · ${effectiveTitleAr} · مقرر جامعي معتمد`,
+                content: [
+                  'المبحث الأول — الإطار المفاهيمي العام والأهداف التكوينية للمادة',
+                  `يشكل هذا المطبوع المرجع الجامعي الرسمي المعتمد والموجه للطلبة بإشراف الأستاذ(ة) ${newBookAuthor.trim()}.`,
+                  'جميع حقوق التأليف والنشر محفوظة وفق التشريع المغربي. يمنع منعاً باتاً استخراج أو نسخ أو تداول صفحات هذا المطبوع خارج التطبيق.',
+                  'الطالب المسجل والمرخص له هو الوحيد المخول له قراءة هذا المرجع ضمن البيئة الرقمية المحمية FAC en PDF.',
+                ],
+                keyPoints: ['مطبوع رسمي مصادق عليه أكاديمياً.', 'ترخيص فردي مؤمن ضد القرصنة والتسريب.'],
+              },
+              {
+                pageNumber: 2,
+                chapterTitle: 'الفصل 1 : المفاهيم التأسيسية والإطار النظري للمقرر',
+                header: `FAC en PDF · ${effectiveTitleAr} · مقرر جامعي معتمد`,
+                content: [
+                  'المبحث الثاني — الإطار المنهجي والمصطلحات القانونية والعلمية التطبيقية',
+                  'إن استيعاب مبادئ ومناهج هذه المادة يتطلب دراسة دقيقة وتحليلاً متأنياً للمحاور النظرية والعملية تمهيداً لامتحانات نهاية السداسي.',
+                ],
+              },
+            ]
+          : [
+              {
+                pageNumber: 1,
+                chapterTitle: 'Chapitre 1 : Introduction Fondamentale & Notions Clés',
+                header: `FAC en PDF · ${effectiveTitle} · Cours Protégé`,
+                content: [
+                  'Section 1.1 — Définition et cadre théorique général',
+                  `Ce document constitue le support de cours officiel pour le module dispensé par ${newBookAuthor.trim()}.`,
+                  'Toute reproduction, diffusion ou capture d\'écran de ce document est formellement prohibée conformément à la loi relative aux droits d\'auteur et droits voisins.',
+                  'L\'étudiant détenteur de la licence est seul autorisé à consulter ce polycopié au sein du lecteur sécurisé FAC en PDF.',
+                ],
+                keyPoints: ['Manuel officiel vérifié par le conseil pédagogique.', 'Licence unique incessible.'],
+              },
+              {
+                pageNumber: 2,
+                chapterTitle: 'Chapitre 1 : Introduction Fondamentale & Notions Clés',
+                header: `FAC en PDF · ${effectiveTitle} · Cours Protégé`,
+                content: [
+                  'Section 1.2 — Notions méthodologiques et terminologie appliquée',
+                  'La maîtrise de cette discipline impose une rigueur terminologique constante. Les concepts abordés dans ce module feront l\'objet d\'applications lors des séances de travaux dirigés (TD).',
+                ],
+              },
             ],
-          },
-        ],
       };
 
       onAddBook(bookItem);
@@ -943,10 +987,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       )}
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                        <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                        <span>Verrouillé In-App</span>
-                      </span>
+                      {b.hasPdf || b.pdfUrl ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>{lang === 'fr' ? `PDF (${b.totalPages || 0} p)` : `PDF مخزن (${b.totalPages || 0} ص)`}</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                          <FileText className="w-3 h-3 text-amber-600" />
+                          <span>{lang === 'fr' ? 'Texte Structuré' : 'فصول نصية'}</span>
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
@@ -2066,7 +2117,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <input
                   type="file"
                   accept=".pdf,.epub,.docx"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const f = e.target.files?.[0];
                     if (f) {
                       setNewBookPdfFile(f);
@@ -2074,7 +2125,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       if (!newBookTitle) {
                         setNewBookTitle(f.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' '));
                       }
-                      setNewBookPages(String(Math.max(20, Math.floor(f.size / (1024 * 40)))));
+                      try {
+                        const pages = await getPdfPageCount(f);
+                        if (pages && pages > 0) {
+                          setNewBookPages(String(pages));
+                        } else {
+                          setNewBookPages(String(Math.max(20, Math.floor(f.size / (1024 * 40)))));
+                        }
+                      } catch {
+                        setNewBookPages(String(Math.max(20, Math.floor(f.size / (1024 * 40)))));
+                      }
                     }
                   }}
                   className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"

@@ -59,6 +59,7 @@ export interface Book {
   pdfUrl?: string;
   pdfFileName?: string;
   fileSize?: string;
+  hasPdf?: boolean;
 }
 
 export interface StudentProfile {

@@ -32,14 +32,13 @@ import {
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { generateDefaultCoverSvg } from '../utils/storage';
-import { saveBookPdf, compressCoverImage } from '../utils/pdfStorage';
+import { saveBookPdf, compressCoverImage, getPdfPageCount } from '../utils/pdfStorage';
 import { useAcademicStructure, registerDynamicAcademicUnit } from '../utils/academicStructureStorage';
 import { BookShareModal } from './BookShareModal';
 
 if (typeof window !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 }
-
 
 interface ProfessorPortalModalProps {
   professor: Professor;
@@ -48,6 +47,7 @@ interface ProfessorPortalModalProps {
   onUpdateBankRib?: (profId: string, newRib: string, bankName: string) => void;
   onRequestPayout?: (profId: string, amount: number) => void;
   onUploadBook?: (newBook: Book) => void;
+  onUpdateBookPdf?: (bookId: string, pdfUrl: string, totalPages?: number, fileName?: string) => void;
   onOpenReader?: (book: Book) => void;
   onUpdatePin?: (profId: string, newPin: string) => void;
   onLogout: () => void;
@@ -69,6 +69,7 @@ export const ProfessorPortalModal: React.FC<ProfessorPortalModalProps> = ({
   onUpdateBankRib,
   onRequestPayout,
   onUploadBook,
+  onUpdateBookPdf,
   onOpenReader,
   onUpdatePin,
   onLogout,
@@ -201,11 +202,15 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
         return;
       }
       try {
-        await saveBookPdf(bookId, file);
+        const objectUrl = await saveBookPdf(bookId, file);
+        const pageCount = await getPdfPageCount(file);
+        if (onUpdateBookPdf) {
+          onUpdateBookPdf(bookId, objectUrl, pageCount || undefined, file.name);
+        }
         setProfPdfToast(
           lang === 'fr'
-            ? `Fichier PDF "${file.name}" attaché et stocké dans la mémoire locale sécurisée ! (${(file.size / (1024 * 1024)).toFixed(1)} Mo)`
-            : `تم رفع ملف "${file.name}" وتخزينه في الذاكرة المشفرة للمتصفح بنجاح لهذا المقرر!`
+            ? `Fichier PDF "${file.name}" (${pageCount ? `${pageCount} pages, ` : ''}${(file.size / (1024 * 1024)).toFixed(1)} Mo) attaché et stocké avec succès !`
+            : `تم رفع ملف "${file.name}" (${pageCount ? `${pageCount} صفحة، ` : ''}${(file.size / (1024 * 1024)).toFixed(1)} ميغابايت) وتخزينه بنجاح لهذا المقرر!`
         );
         setTimeout(() => setProfPdfToast(null), 5000);
       } catch (err) {
@@ -288,15 +293,19 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
 
   const handleUploadBookSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newBookTitleFr.trim()) return;
+    const effectiveTitleFr = newBookTitleFr.trim() || newBookTitleAr.trim();
+    const effectiveTitleAr = newBookTitleAr.trim() || newBookTitleFr.trim();
+    if (!effectiveTitleFr && !effectiveTitleAr) return;
 
     setIsProcessingPdf(true);
     try {
       const bookId = `book-prof-${Date.now()}`;
       let storedPdfUrl: string | undefined = undefined;
+      let detectedPages: number | null = null;
 
       if (uploadedPdfFile) {
         try {
+          detectedPages = await getPdfPageCount(uploadedPdfFile);
           storedPdfUrl = await saveBookPdf(bookId, uploadedPdfFile);
         } catch (pdfErr) {
           console.warn('PDF storage warning, continuing with in-app reader:', pdfErr);
@@ -304,7 +313,7 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
       }
 
       const price = parseFloat(newBookPriceMAD) || 0;
-      const parsedPages = uploadPageCount || 15;
+      const parsedPages = detectedPages || uploadPageCount || 15;
 
       const finalSpecialty = isCustomBookSpecialty && customBookSpecialtyFr.trim()
         ? customBookSpecialtyFr.trim()
@@ -316,11 +325,11 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
 
       const finalModule = isCustomBookModule && customBookModuleFr.trim()
         ? customBookModuleFr.trim()
-        : (selectedBookModule.trim() || newBookModule.trim() || newBookTitleFr.trim());
+        : (selectedBookModule.trim() || newBookModule.trim() || effectiveTitleFr);
 
       const finalModuleAr = isCustomBookModule && customBookModuleAr.trim()
         ? customBookModuleAr.trim()
-        : (newBookTitleAr.trim() || finalModule);
+        : (effectiveTitleAr || finalModule);
 
       // Register dynamically into the application structure if custom or present
       if (isCustomBookSpecialty || isCustomBookModule || finalModule) {
@@ -343,10 +352,12 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
         setTimeout(() => setStructureToast(null), 6000);
       }
 
+      const isArabicBook = Boolean(newBookTitleAr.trim() || /[\u0600-\u06FF]/.test(effectiveTitleFr));
+
       const newBook: Book = {
         id: bookId,
-        title: newBookTitleFr.trim(),
-        titleAr: newBookTitleAr.trim() || undefined,
+        title: effectiveTitleFr,
+        titleAr: effectiveTitleAr !== effectiveTitleFr ? effectiveTitleAr : (newBookTitleAr.trim() || undefined),
         author: professor.fullName,
         authorTitle: professor.title,
         university: professor.university || 'Université Abdelmalek Essaâdi (UAE)',
@@ -358,67 +369,116 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
         moduleAr: finalModuleAr,
         semester: newBookSemester,
         year: '2026',
-        edition: 'Édition Académique Validée & In-App',
+        edition: isArabicBook ? 'طبعة أكاديمية معتمدة ومحمية رقمياً' : 'Édition Académique Validée & In-App',
         totalPages: parsedPages,
         priceMAD: price,
         publicPriceMAD: Math.round(price * 1.5),
         isFree: price <= 0,
+        hasPdf: Boolean(uploadedPdfFile || storedPdfUrl),
         pdfUrl: storedPdfUrl,
+        pdfFileName: uploadedFileName || undefined,
         coverImage:
           customCoverImage ||
           newBookCover ||
-          generateDefaultCoverSvg(newBookTitleFr.trim(), professor.fullName, newBookFaculty),
+          generateDefaultCoverSvg(effectiveTitleFr, professor.fullName, newBookFaculty),
         isbn: `978-9954-${Math.floor(10 + Math.random() * 89)}-${Math.floor(100 + Math.random() * 899)}-1`,
         description:
           newBookDesc.trim() ||
-          `Support de cours officiel déposé par ${professor.fullName}. Protégé contre tout téléchargement ou extraction.`,
+          (isArabicBook
+            ? `مقرر ومطبوع جامعي رسمي معتمد من طرف ${professor.fullName}. محمي ضد أي تصوير أو استخراج خارجي بموجب ترخيص رقمي فردي.`
+            : `Support de cours officiel déposé par ${professor.fullName}. Protégé contre tout téléchargement ou extraction.`),
         rating: 5.0,
         reviewsCount: 1,
         sampleMaxPage: 2,
-        tags: [finalModule, finalSpecialty, newBookSemester, 'Polycopié Certifié'].filter(Boolean) as string[],
-        chapters: [
-          {
-            id: 'c1',
-            title: 'Chapitre 1 : Introduction & Fondements',
-            startPage: 1,
-            pageCount: Math.max(1, Math.floor(parsedPages / 3)),
-          },
-          {
-            id: 'c2',
-            title: 'Chapitre 2 : Développements & Applications Pratiques',
-            startPage: Math.max(2, Math.floor(parsedPages / 3) + 1),
-            pageCount: Math.max(1, Math.floor(parsedPages / 3)),
-          },
-          {
-            id: 'c3',
-            title: 'Chapitre 3 : Travaux Pratiques & Cas d\'Étude',
-            startPage: Math.max(3, Math.floor((parsedPages * 2) / 3) + 1),
-            pageCount: Math.max(1, parsedPages - Math.floor((parsedPages * 2) / 3)),
-          },
-        ],
-        pages: [
-          {
-            pageNumber: 1,
-            chapterTitle: 'Chapitre 1 : Introduction & Fondements',
-            header: `FAC en PDF · ${newBookTitleFr.trim()} · Support Certifié`,
-            content: [
-              'Section 1.1 — Objectifs et présentation générale du cours',
-              `Ce document constitue le support de cours officiel pour le module dispensé par ${professor.fullName}.`,
-              'Toute reproduction, diffusion ou capture d\'écran de ce document est formellement prohibée conformément à la législation sur les droits d\'auteur.',
-              'L\'étudiant détenteur de la licence est seul autorisé à consulter ce polycopié au sein du lecteur sécurisé FAC en PDF.',
+        tags: [finalModule, finalSpecialty, newBookSemester, isArabicBook ? 'مطبوع معتمد' : 'Polycopié Certifié'].filter(Boolean) as string[],
+        chapters: isArabicBook
+          ? [
+              {
+                id: 'c1',
+                title: 'الفصل 1 : المفاهيم التأسيسية والإطار النظري',
+                startPage: 1,
+                pageCount: Math.max(1, Math.floor(parsedPages / 3)),
+              },
+              {
+                id: 'c2',
+                title: 'الفصل 2 : القواعد المنهجية والتطبيقات المعمقة',
+                startPage: Math.max(2, Math.floor(parsedPages / 3) + 1),
+                pageCount: Math.max(1, Math.floor(parsedPages / 3)),
+              },
+              {
+                id: 'c3',
+                title: 'الفصل 3 : التطبيقات العملية ونماذج الامتحانات',
+                startPage: Math.max(3, Math.floor((parsedPages * 2) / 3) + 1),
+                pageCount: Math.max(1, parsedPages - Math.floor((parsedPages * 2) / 3)),
+              },
+            ]
+          : [
+              {
+                id: 'c1',
+                title: 'Chapitre 1 : Introduction & Fondements',
+                startPage: 1,
+                pageCount: Math.max(1, Math.floor(parsedPages / 3)),
+              },
+              {
+                id: 'c2',
+                title: 'Chapitre 2 : Développements & Applications Pratiques',
+                startPage: Math.max(2, Math.floor(parsedPages / 3) + 1),
+                pageCount: Math.max(1, Math.floor(parsedPages / 3)),
+              },
+              {
+                id: 'c3',
+                title: 'Chapitre 3 : Travaux Pratiques & Cas d\'Étude',
+                startPage: Math.max(3, Math.floor((parsedPages * 2) / 3) + 1),
+                pageCount: Math.max(1, parsedPages - Math.floor((parsedPages * 2) / 3)),
+              },
             ],
-            keyPoints: ['Manuel officiel vérifié par le professeur.', 'Licence DRM in-app incessible.'],
-          },
-          {
-            pageNumber: 2,
-            chapterTitle: 'Chapitre 1 : Introduction & Fondements',
-            header: `FAC en PDF · ${newBookTitleFr.trim()} · Support Certifié`,
-            content: [
-              'Section 1.2 — Cadre méthodologique et terminologie',
-              'La maîtrise des concepts fondamentaux de cette discipline requiert un travail d\'assimilation rigoureux. Des études de cas et exercices pratiques sont intégrés pour consolider les acquis.',
+        pages: isArabicBook
+          ? [
+              {
+                pageNumber: 1,
+                chapterTitle: 'الفصل 1 : المفاهيم التأسيسية والإطار النظري',
+                header: `FAC en PDF · ${effectiveTitleAr} · مقرر جامعي معتمد`,
+                content: [
+                  'المبحث الأول — أهداف المقرر والمحاور الكبرى للدراسة',
+                  `يشكل هذا المطبوع المرجع البيداغوجي المعتمد والموجه للطلبة بإشراف ${professor.fullName}.`,
+                  'جميع حقوق التأليف والنشر محفوظة وفق التشريعات والقوانين الجاري بها العمل. يمنع منعا كليا تصوير أو نسخ أو تداول هذا المصنف خارج المنصة الرقمية.',
+                  'الطالب الحاصل على ترخيص القراءة الفردي هو الوحيد المخول له مطالعة هذا المقرر داخل القارئ المشفر FAC en PDF.',
+                ],
+                keyPoints: ['مطبوع رسمي معتمد من أستاذ المادة.', 'ترخيص رقمي محمي مخصص للقراءة داخل المنصة.'],
+              },
+              {
+                pageNumber: 2,
+                chapterTitle: 'الفصل 1 : المفاهيم التأسيسية والإطار النظري',
+                header: `FAC en PDF · ${effectiveTitleAr} · مقرر جامعي معتمد`,
+                content: [
+                  'المبحث الثاني — الإطار المنهجي والمصطلحات التأسيسية للمادة',
+                  'يتطلب استيعاب المفاهيم الجوهرية لهذه المادة الأكاديمية التدرج والربط التحليلي بين القواعد النظرية والتطبيقات العملية والتمارين البيداغوجية الملحقة بآخر كل محور.',
+                ],
+              },
+            ]
+          : [
+              {
+                pageNumber: 1,
+                chapterTitle: 'Chapitre 1 : Introduction & Fondements',
+                header: `FAC en PDF · ${effectiveTitleFr} · Support Certifié`,
+                content: [
+                  'Section 1.1 — Objectifs et présentation générale du cours',
+                  `Ce document constitue le support de cours officiel pour le module dispensé par ${professor.fullName}.`,
+                  'Toute reproduction, diffusion ou capture d\'écran de ce document est formellement prohibée conformément à la législation sur les droits d\'auteur.',
+                  'L\'étudiant détenteur de la licence est seul autorisé à consulter ce polycopié au sein du lecteur sécurisé FAC en PDF.',
+                ],
+                keyPoints: ['Manuel officiel vérifié par le professeur.', 'Licence DRM in-app incessible.'],
+              },
+              {
+                pageNumber: 2,
+                chapterTitle: 'Chapitre 1 : Introduction & Fondements',
+                header: `FAC en PDF · ${effectiveTitleFr} · Support Certifié`,
+                content: [
+                  'Section 1.2 — Cadre méthodologique et terminologie',
+                  'La maîtrise des concepts fondamentaux de cette discipline requiert un travail d\'assimilation rigoureux. Des études de cas et exercices pratiques sont intégrés pour consolider les acquis.',
+                ],
+              },
             ],
-          },
-        ],
       };
 
       if (onUploadBook) {
