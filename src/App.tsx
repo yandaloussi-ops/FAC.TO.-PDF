@@ -25,11 +25,6 @@ import { MoroccanCheckoutModal } from './components/MoroccanCheckoutModal';
 import { UserGuideAndTermsModal } from './components/UserGuideAndTermsModal';
 import { Footer } from './components/Footer';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import UploadBook from './UploadBook';
-import { UserGuideAndTermsModal } from './components/UserGuideAndTermsModal';
-import { Footer } from './components/Footer';
-import { ErrorBoundary } from './components/ErrorBoundary';
-import UploadBook from './UploadBook'; // <--- ضع السطر هنا تماماً
 
 import {
   MOCK_BOOKS,
