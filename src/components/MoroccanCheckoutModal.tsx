@@ -131,7 +131,7 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
                   type="file"
                   accept="image/*"
                   required
-                  onChange={(e) => setReceiptFile(e.files?.[0] || null)}
+                  onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
                   className="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 cursor-pointer"
                 />
               </div>
