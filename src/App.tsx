@@ -1112,7 +1112,7 @@ export default function App() {
                     onClick={() => setCurrentTab('home')}
                     className="px-6 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold text-sm transition-all cursor-pointer"
                   >
-                    {lang === 'fr' ? 'Retourner à l\'Accueil' : 'العودة للرئيسية'}
+                   {lang === 'fr' ? "Retourner à l'Accueil" : 'العودة للرئيسية'}
                   </button>
                 </div>
               </div>
