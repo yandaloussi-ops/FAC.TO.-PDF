@@ -26,8 +26,14 @@ import {
 } from '../utils/storage';
 import { saveBookPdf, getPdfPageCount } from '../utils/pdfStorage';
 import { useAcademicStructure, registerDynamicAcademicUnit } from '../utils/academicStructureStorage';
+import { db } from '../firebase';
+import { collection, onSnapshot, doc, updateDoc, query, orderBy } from 'firebase/firestore';
 import {
   BookOpen,
+  Eye,
+  Mail,
+  Loader2,
+  Receipt,
   DollarSign,
   KeyRound,
   Users,
