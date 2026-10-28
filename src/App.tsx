@@ -1233,8 +1233,7 @@ export default function App() {
           
           handleCloseCheckout();
         }}
-          handleCloseCheckout();
-        }}
+         
           lang={lang}
         />
       )}
