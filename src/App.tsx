@@ -1289,9 +1289,15 @@ export default function App() {
           adminRib={adminCommercialAccount.bankRib}
           onClose={handleCloseCheckout}
          onSuccess={(method, details, drmCode) => {
-          if (method !== 'Cash Plus') {
+          // فحص مرن لطريقة الدفع لضمان عدم تفعيل الكتاب لأي طلب كاش بلاس
+          const isManualPayment = method && method.toLowerCase().includes('cash');
+
+          if (!isManualPayment) {
             handleAcquireBook(selectedBookForCheckout.id, method, details, drmCode);
           }
+          
+          handleCloseCheckout();
+        }}
           handleCloseCheckout();
         }}
           lang={lang}
