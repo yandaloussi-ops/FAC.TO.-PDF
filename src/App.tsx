@@ -1051,74 +1051,18 @@ export default function App() {
         )}
 
         {/* VIEW 5: ADMIN DASHBOARD (لوحة تحكم المدير & التحصيل التجاري) */}
-          {currentTab === 'admin' && (
-            <div>
-              <UploadBook />
-          isAdminAuthenticated ? (
-            <ErrorBoundary
-              fallbackTitle={lang === 'fr' ? 'Console d\'Administration / لوحة المدير' : 'لوحة المدير / Console d\'Administration'}
-              onReset={() => setCurrentTab('home')}
-            >
-              <AdminDashboard
-                books={books}
-                onAddBook={handleAddBook}
-                onUpdateBookPrice={handleUpdateBookPrice}
-                onDeleteBook={handleDeleteBook}
-                onUpdateBookPdf={handleUpdateBookPdf}
-                professors={professors}
-                onAddProfessor={handleAddProfessor}
-                onExecutePayout={handleExecutePayout}
-                onDeleteProfessor={handleDeleteProfessor}
-                onToggleProfessorStatus={handleToggleProfessorStatus}
-                students={registeredStudents}
-                onDeleteStudent={handleDeleteStudent}
-                onToggleStudentStatus={handleToggleStudentStatus}
-                drmLicenses={drmLicenses}
-                onGenerateAndDispatchLicense={handleGenerateAndDispatchLicense}
-                onRevokeLicense={handleRevokeLicense}
-                faculties={faculties}
-                onAddFaculty={handleAddFaculty}
-                payoutTransactions={payoutTransactions}
-                adminCommercialAccount={adminCommercialAccount}
-                paymentOrders={paymentOrders}
-                onOpenReader={(book) => setSelectedBookForReader(book)}
-                onReturnHome={() => setCurrentTab('home')}
-                onLockAdmin={handleLockAdmin}
-                lang={lang}
-              />
-            </ErrorBoundary>
-          ) : (
-            <div className="max-w-xl mx-auto my-16 px-4">
-              <div className="p-8 rounded-3xl bg-stone-900 border border-amber-500/30 text-center shadow-2xl">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                  <ShieldAlert className="w-8 h-8" />
-                </div>
-                <h2 className="text-xl font-bold text-white mb-2">
-                  {lang === 'fr' ? 'Accès Administrateur Restreint' : 'فضاء الإدارة محمي برمز الأمان'}
-                </h2>
-                <p className="text-sm text-stone-300 mb-6">
-                  {lang === 'fr'
-                    ? 'Cette console est protégée. Veuillez vous identifier en tant que Super-Administrateur.'
-                    : 'هذا الفضاء مخصص حصرياً لمدير التطبيق. يرجى إدخال رمز الأمان أو المصادقة لمتابعة العمل وحماية المعطيات.'}
-                </p>
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  <button
-                    onClick={() => setIsAdminAuthModalOpen(true)}
-                    className="px-6 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-bold text-sm transition-all cursor-pointer shadow-md"
-                  >
-                    {lang === 'fr' ? 'Saisir le Code d\'Accès' : 'إدخال رمز المرور'}
-                  </button>
-                  <button
-                    onClick={() => setCurrentTab('home')}
-                    className="px-6 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold text-sm transition-all cursor-pointer"
-                  >
-                   {lang === 'fr' ? "Retourner à l'Accueil" : 'العودة للرئيسية'}
-                  </button>
-                </div>
-              </div>
-            </div>
-      </main>
-
+         {currentTab === 'admin' && (
+        <div>
+          {/* محتوى قسم الإدارة أو الصفحة */}
+          <button
+            onClick={() => setCurrentTab('home')}
+            className="px-6 py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 font-bold text-sm transition-all cursor-pointer"
+          >
+            {lang === 'fr' ? "Retourner à l'Accueil" : 'العودة للرئيسية'}
+          </button>
+        </div>
+      )}
+    </main>
       {/* Footer */}
       <Footer lang={lang} />
 
