@@ -31,7 +31,7 @@ import {
   initialStudentProfile,
   INITIAL_PROFESSORS,
   INITIAL_DRM_LICENSES
-} from './mockData';
+} from './data/mockData';
 
 import {
   INITIAL_FACULTIES,
