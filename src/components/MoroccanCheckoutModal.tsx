@@ -57,7 +57,21 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
         status: 'pending',
         createdAt: serverTimestamp(),
       });
-
+// إرسال بريد إلكتروني لتأكيد الطلب عبر Resend
+try {
+  await fetch('/api/send-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      studentName,
+      studentEmail,
+      bookTitle: book?.title,
+      receiptUrl,
+    }),
+  });
+} catch (emailErr) {
+  console.error('Failed to send confirmation email:', emailErr);
+}
       setSubmitted(true);
     } catch (error) {
       console.error('Error submitting order:', error);
