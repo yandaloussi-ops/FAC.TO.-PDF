@@ -47,9 +47,9 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
 
       // 2. حفظ الطلب في Firestore بحالة pending
       await addDoc(collection(db, 'paymentOrders'), {
-        bookId: book.id,
-        bookTitle: book.title,
-        bookPrice: book.price,
+        bookId: book?.id || '',
+        bookTitle: book?.title || '',
+        bookPrice: book?.price ?? 0,
         studentName,
         studentEmail,
         studentPhone,
