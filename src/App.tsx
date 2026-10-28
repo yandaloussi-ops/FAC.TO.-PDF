@@ -1288,10 +1288,12 @@ export default function App() {
           student={student}
           adminRib={adminCommercialAccount.bankRib}
           onClose={handleCloseCheckout}
-          onSuccess={(method, details, drmCode) => {
+         onSuccess={(method, details, drmCode) => {
+          if (method !== 'Cash Plus') {
             handleAcquireBook(selectedBookForCheckout.id, method, details, drmCode);
-            handleCloseCheckout();
-          }}
+          }
+          handleCloseCheckout();
+        }}
           lang={lang}
         />
       )}
