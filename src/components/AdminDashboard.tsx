@@ -130,6 +130,49 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onOpenReader,
   lang,
 }) => {
+  // --- حالات ودالة إدارة طلبات كاش بلاس ---
+  const [orders, setOrders] = useState<PaymentOrder[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState<boolean>(true);
+  const [processingOrderId, setProcessingOrderId] = useState<string | null>(null);
+  const [selectedReceiptUrl, setSelectedReceiptUrl] = useState<string | null>(null);
+
+  // جلب طلبات الشراء حياً من Firestore
+  useEffect(() => {
+    const ordersQuery = query(collection(db, 'paymentOrders'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(ordersQuery, (snapshot) => {
+      const fetchedOrders: PaymentOrder[] = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as PaymentOrder[];
+      setOrders(fetchedOrders);
+      setLoadingOrders(false);
+    }, (error) => {
+      console.error("Error fetching orders:", error);
+      setLoadingOrders(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // دالة تفعيل الطلب
+  const handleApproveOrder = async (order: PaymentOrder) => {
+    setProcessingOrderId(order.id);
+    try {
+      const generatedKey = `KEY-${Math.random().toString(36).substring(2, 8).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+      const orderRef = doc(db, 'paymentOrders', order.id);
+      await updateDoc(orderRef, {
+        status: 'approved',
+        generatedKey,
+        approvedAt: new Date(),
+      });
+      alert(`تم تأكيد الطلب بنجاح!\nالمفتاح المولد: ${generatedKey}`);
+    } catch (error) {
+      console.error('Error approving order:', error);
+      alert('حدث خطأ أثناء تأكيد الطلب.');
+    } finally {
+      setProcessingOrderId(null);
+    }
+  };
   const [activeTab, setActiveTab] = useState<'books' | 'licenses' | 'professors' | 'students' | 'faculties' | 'commercial' | 'payouts' | 'security'>('books');
   const [searchFilter, setSearchFilter] = useState('');
 
