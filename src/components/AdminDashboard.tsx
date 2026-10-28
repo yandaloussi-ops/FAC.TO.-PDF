@@ -680,6 +680,74 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* قسم مراجعة طلبات كاش بلاس */}
+        <div className="my-6 p-6 bg-slate-800/80 rounded-2xl border border-slate-700 space-y-4">
+          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <Receipt className="w-5 h-5 text-emerald-400" />
+            طلبات الشراء الواردة (Cash Plus)
+          </h3>
+
+          {loadingOrders ? (
+            <div className="py-6 text-center text-slate-400 flex justify-center items-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin text-emerald-400" />
+              <span>جاري تحميل الطلبات...</span>
+            </div>
+          ) : orders.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-4">لا توجد طلبات شراء حالياً.</p>
+          ) : (
+            <div className="space-y-3">
+              {orders.map((order) => (
+                <div key={order.id} className="p-4 bg-slate-900 rounded-xl border border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-white">{order.studentName}</span>
+                      <span className="text-xs text-slate-400">({order.studentEmail})</span>
+                    </div>
+                    <p className="text-xs text-emerald-400 mt-1">
+                      الكتاب: <strong>{order.bookTitle}</strong> | السعر: <strong>{order.bookPrice} DH</strong>
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSelectedReceiptUrl(order.receiptUrl)}
+                      className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1"
+                    >
+                      <Eye className="w-3.5 h-3.5" /> معاينة الوصل
+                    </button>
+
+                    {order.status === 'approved' ? (
+                      <span className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg text-xs font-bold">
+                        تم التأكيد
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleApproveOrder(order)}
+                        disabled={processingOrderId === order.id}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1"
+                      >
+                        <Mail className="w-3.5 h-3.5" /> تأكيد وإرسال المفتاح
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* نافذة معاينة صورة الوصل */}
+        {selectedReceiptUrl && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <div className="bg-slate-900 border border-slate-700 p-4 rounded-2xl max-w-xl w-full space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                <h4 className="text-sm font-bold text-white">وصل الإيداع</h4>
+                <button onClick={() => setSelectedReceiptUrl(null)} className="text-slate-400 hover:text-white">✕</button>
+              </div>
+              <img src={selectedReceiptUrl} alt="الوصل" className="max-h-[60vh] mx-auto rounded-lg object-contain" />
+            </div>
+          </div>
+        )}
       {/* Return to Home Bar with Security Lock Button */}
       <div className="mb-6 pb-3 border-b border-stone-200/80 flex items-center justify-between flex-wrap gap-2">
         {onReturnHome ? (
