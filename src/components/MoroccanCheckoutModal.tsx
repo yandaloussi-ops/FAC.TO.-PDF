@@ -1,3 +1,4 @@
+import emailjs from '@emailjs/browser';
 import React, { useState } from 'react';
 import { db, storage } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -44,7 +45,30 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
       const storageRef = ref(storage, `receipts/${Date.now()}_${receiptFile.name}`);
       const uploadResult = await uploadBytes(storageRef, receiptFile);
       const receiptUrl = await getDownloadURL(uploadResult.ref);
+// 2. إرسال البريد الإلكتروني عبر EmailJS
+    const templateParams = {
+      student_name: studentName,
+      student_email: studentEmail,
+      book_title: bookTitle, // أو اسم الكتاب حسب المتغير لديك
+      receipt_url: receiptUrl,
+    };
 
+    await emailjs.send(
+      process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID!,
+      process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID!,
+      templateParams,
+      process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY!
+    );
+
+    // 3. التوجيه لرسالة الواتساب
+    const whatsappMessage = encodeURIComponent(
+      `مرحباً، أود تأكيد طلبي لشراء مطبوع: *${bookTitle}*\n` +
+      `الاسم: ${studentName}\n` +
+      `البريد: ${studentEmail}\n` +
+      `وصل الدفع: ${receiptUrl}`
+    );
+
+    window.location.href = `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER}?text=${whatsappMessage}`;
       // 2. حفظ الطلب في Firestore بحالة pending
       await addDoc(collection(db, 'paymentOrders'), {
         bookId: book?.id || '',
