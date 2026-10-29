@@ -45,30 +45,34 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
       const storageRef = ref(storage, `receipts/${Date.now()}_${receiptFile.name}`);
       const uploadResult = await uploadBytes(storageRef, receiptFile);
       const receiptUrl = await getDownloadURL(uploadResult.ref);
-// 2. إرسال البريد الإلكتروني عبر EmailJS
-    const templateParams = {
-      student_name: studentName,
-      student_email: studentEmail,
-      book_title: bookTitle, // أو اسم الكتاب حسب المتغير لديك
-      receipt_url: receiptUrl,
-    };
+// 2. إرسال البريد الإلكتروني عبر EmailJS (بحماية try/catch لكي لا يتوقف الكود)
+    try {
+      const templateParams = {
+        student_name: studentName,
+        student_email: studentEmail,
+        book_title: typeof bookTitle !== 'undefined' ? bookTitle : 'مطبوع',
+        receipt_url: receiptUrl,
+      };
 
-    await emailjs.send(
-      process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID!,
-      process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID!,
-      templateParams,
-      process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY!
-    );
+      await emailjs.send(
+        process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID!,
+        process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID!,
+        templateParams,
+        process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY!
+      );
+    } catch (emailErr) {
+      console.error('خطأ في إرسال البريد:', emailErr);
+    }
 
-    // 3. التوجيه لرسالة الواتساب
-    const whatsappMessage = encodeURIComponent(
-      `مرحباً، أود تأكيد طلبي لشراء مطبوع: *${bookTitle}*\n` +
+    // 3. فتح الواتساب في نافذة جديدة (لكي يستمر الكود أسفله في حفظ الطلب في Firestore)
+    const phone = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
+    const textMessage = encodeURIComponent(
+      `مرحباً، أود تأكيد طلبي لشراء المطبوع\n` +
       `الاسم: ${studentName}\n` +
-      `البريد: ${studentEmail}\n` +
-      `وصل الدفع: ${receiptUrl}`
+      `البريد الإلكتروني: ${studentEmail}\n` +
+      `رابط وصل الدفع: ${receiptUrl}`
     );
-
-    window.location.href = `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER}?text=${whatsappMessage}`;
+    window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${textMessage}`, '_blank');
       // 2. حفظ الطلب في Firestore بحالة pending
       await addDoc(collection(db, 'paymentOrders'), {
         bookId: book?.id || '',
