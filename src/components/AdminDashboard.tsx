@@ -135,22 +135,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedReceiptUrl, setSelectedReceiptUrl] = useState<string | null>(null);
 
   // جلب طلبات الشراء حياً من Firestore
-  useEffect(() => {
-    const ordersQuery = query(collection(db, 'paymentOrders'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(ordersQuery, (snapshot) => {
-      const fetchedOrders: PaymentOrder[] = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as PaymentOrder[];
-      setOrders(fetchedOrders);
-      setLoadingOrders(false);
-    }, (error) => {
-      console.error("Error fetching orders:", error);
-      setLoadingOrders(false);
-    });
+  //useEffect(() => {
+   // const ordersQuery = query(collection(db, 'paymentOrders'), orderBy('createdAt', 'desc'));
+   // const unsubscribe = onSnapshot(ordersQuery, (snapshot) => {
+    //  const fetchedOrders: PaymentOrder[] = snapshot.docs.map((doc) => ({
+   //     id: doc.id,
+   //     ...doc.data(),
+ //     })) as PaymentOrder[];
+   //   setOrders(fetchedOrders);
+  //    setLoadingOrders(false);
+ //   }, (error) => {
+  //    console.error("Error fetching orders:", error);
+  //    setLoadingOrders(false);
+//    });
 
-    return () => unsubscribe();
-  }, []);
+ //   return () => unsubscribe();
+//  }, []);
 
   // دالة تفعيل الطلب
   const handleApproveOrder = async (order: PaymentOrder) => {
