@@ -55,7 +55,6 @@ import {
   FileText,
   ExternalLink,
   Landmark,
-  Receipt,
   GraduationCap,
   Lock,
   ShieldAlert,
@@ -70,7 +69,6 @@ import {
   UserCheck,
   Image as ImageIcon,
   AlertCircle,
-  Mail,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
