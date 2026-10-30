@@ -248,10 +248,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [payoutRef, setPayoutRef] = useState('');
 
   // Calculate totals
-  const totalRevenue = professors.reduce((acc, p) => acc + p.totalEarningsMAD + (p.totalEarningsMAD * 0.25), 0);
-  const totalPaidToProfs = payoutTransactions.reduce((acc, p) => acc + p.amountMAD, 0);
-  const totalPendingProfs = professors.reduce((acc, p) => acc + p.pendingPayoutMAD, 0);
-
+  const totalRevenue = (professors || []).reduce((acc, p) => acc + p.totalEarningsMAD + (p.totalEarningsMAD * 0.25), 0);
+const totalPaidToProfs = (payoutTransactions || []).reduce((acc, p) => acc + p.amountMAD, 0);
+const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingPayoutMAD, 0);
   // Real PDF Direct Upload handler for existing books
   const [adminPdfToast, setAdminPdfToast] = useState<string | null>(null);
   const handleUploadPdfForBook = async (bookId: string, e: React.ChangeEvent<HTMLInputElement>) => {
