@@ -636,10 +636,10 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
       appletId: 'FAC-EN-PDF-MAROC',
       commercialAccount: adminCommercialAccount,
       universitiesCount: UNIVERSITIES_DATABASE.length,
-      booksCount: books.length,
-      professorsCount: professors.length,
-      drmLicensesCount: drmLicenses.length,
-      paymentOrdersCount: paymentOrders.length,
+      booksCount: books?.length || 0,
+      professorsCount: professors?.length || 0,
+      drmLicensesCount: drmLicenses?.length || 0,
+      paymentOrdersCount: paymentOrders?.length || 0,
       cndpRegistration: 'CNDP-FAC-2026-9812',
       sha256Signature: securityConfig.databaseChecksum,
     };
@@ -688,7 +688,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               <Loader2 className="w-5 h-5 animate-spin text-emerald-400" />
               <span>جاري تحميل الطلبات...</span>
             </div>
-          ) : orders.length === 0 ? (
+          ) : orders?.length || 0 === 0 ? (
             <p className="text-sm text-slate-400 text-center py-4">لا توجد طلبات شراء حالياً.</p>
           ) : (
             <div className="space-y-3">
@@ -852,7 +852,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               <KeyRound className="w-4 h-4 text-amber-600" />
             </div>
             <div className="text-xl sm:text-2xl font-black text-stone-900 tabular-nums">
-              {drmLicenses.length}
+              {drmLicenses?.length || 0}
             </div>
             <div className="text-[11px] text-stone-500 mt-1">
               {lang === 'fr' ? 'Protection in-app active' : 'حماية مشددة'}
@@ -879,10 +879,10 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               <Users className="w-4 h-4 text-indigo-600" />
             </div>
             <div className="text-xl sm:text-2xl font-black text-stone-900 tabular-nums">
-              {professors.length}
+              {professors?.length || 0}
             </div>
             <div className="text-[11px] text-stone-500 mt-1">
-              {books.length} {lang === 'fr' ? 'ouvrages actifs' : 'مقررات مسجلة'}
+              {books?.length || 0} {lang === 'fr' ? 'ouvrages actifs' : 'مقررات مسجلة'}
             </div>
           </div>
         </div>
@@ -901,7 +901,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           <BookOpen className="w-3.5 h-3.5" />
           <span>{lang === 'fr' ? 'Livres & Polycopiés' : 'إدارة الكتب والمقررات'}</span>
           <span className="text-[11px] font-mono bg-stone-700/40 text-stone-200 px-1.5 py-0.2 rounded">
-            {books.length}
+            {books?.length || 0}
           </span>
         </button>
 
@@ -916,7 +916,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           <KeyRound className="w-3.5 h-3.5" />
           <span>{lang === 'fr' ? 'Licences DRM & Accès' : 'تراخيص وأكواد الدخول'}</span>
           <span className="text-[11px] font-mono bg-stone-700/40 text-stone-200 px-1.5 py-0.2 rounded">
-            {drmLicenses.length}
+            {drmLicenses?.length || 0}
           </span>
         </button>
 
@@ -931,7 +931,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           <Users className="w-3.5 h-3.5" />
           <span>{lang === 'fr' ? 'Comptes des Enseignants' : 'حسابات الأساتذة والمستحقات'}</span>
           <span className="text-[11px] font-mono bg-stone-700/40 text-stone-200 px-1.5 py-0.2 rounded">
-            {professors.length}
+            {professors?.length || 0}
           </span>
         </button>
 
@@ -947,7 +947,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           <GraduationCap className="w-3.5 h-3.5 text-emerald-400" />
           <span>{lang === 'fr' ? 'Comptes des Étudiants' : 'حسابات الطلبة المسجلين'}</span>
           <span className="text-[11px] font-mono bg-stone-700/40 text-stone-200 px-1.5 py-0.2 rounded">
-            {students.length}
+            {students?.length || 0}
           </span>
         </button>
 
@@ -962,7 +962,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           <Building2 className="w-3.5 h-3.5" />
           <span>{lang === 'fr' ? 'Facultés & Départements' : 'الكليات والمؤسسات'}</span>
           <span className="text-[11px] font-mono bg-stone-700/40 text-stone-200 px-1.5 py-0.2 rounded">
-            {faculties.length}
+            {faculties?.length || 0}
           </span>
         </button>
 
@@ -977,7 +977,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           <Landmark className="w-3.5 h-3.5" />
           <span>{lang === 'fr' ? 'Compte Commercial & Encaissement Admin' : 'التحصيل التجاري وحساب الإدارة'}</span>
           <span className="text-[11px] font-mono bg-amber-950/20 text-stone-950 px-1.5 py-0.2 rounded font-bold">
-            {paymentOrders.length}
+            {paymentOrders?.length || 0}
           </span>
         </button>
 
@@ -1375,7 +1375,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                 <GraduationCap className="w-4 h-4 text-emerald-600" />
                 <span>{lang === 'fr' ? 'Gestion des Comptes Étudiants' : 'إدارة ومراقبة حسابات الطلبة المسجلين'}</span>
                 <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
-                  {students.length} {lang === 'fr' ? 'étudiants' : 'طالب'}
+                  {students?.length || 0} {lang === 'fr' ? 'étudiants' : 'طالب'}
                 </span>
               </h2>
               <p className="text-xs text-stone-500">
@@ -1997,7 +1997,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div className="pt-3 border-t border-stone-200 text-[11px] text-emerald-700 font-bold flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>{paymentOrders.length} {lang === 'fr' ? 'commandes réconciliées avec succès' : 'عمليات أداء مطابقة بالكامل'}</span>
+                <span>{paymentOrders?.length || 0} {lang === 'fr' ? 'commandes réconciliées avec succès' : 'عمليات أداء مطابقة بالكامل'}</span>
               </div>
             </div>
 
@@ -2026,12 +2026,12 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
                   <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200 flex items-center justify-between">
                     <span>{lang === 'fr' ? 'Comptes Enseignants Vérifiés' : 'حسابات الأساتذة الموثقة'}</span>
-                    <span className="font-bold font-mono text-stone-900">{professors.length} professeurs</span>
+                    <span className="font-bold font-mono text-stone-900">{professors?.length || 0} professeurs</span>
                   </div>
 
                   <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200 flex items-center justify-between">
                     <span>{lang === 'fr' ? 'Licences DRM Actives' : 'رخص الدخول الصادرة'}</span>
-                    <span className="font-bold font-mono text-stone-900">{drmLicenses.length} licences</span>
+                    <span className="font-bold font-mono text-stone-900">{drmLicenses?.length || 0} licences</span>
                   </div>
 
                   <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
@@ -2311,7 +2311,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                     onChange={(e) => {
                       setNewBookUnivCode(e.target.value);
                       const u = UNIVERSITIES_DATABASE.find((item) => item.code === e.target.value);
-                      if (u && u.faculties.length > 0) {
+                      if (u && u.faculties?.length || 0 > 0) {
                         setNewBookAffiliatedFaculty(u.faculties[0]);
                       }
                     }}
