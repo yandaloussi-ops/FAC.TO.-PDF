@@ -261,11 +261,11 @@ export default function App() {
         return;
       }
       // 6. If currently on a sub-tab (catalog, library, drm-info, admin), navigate back to Home
-      if (currentTab !== 'home') {
-        setCurrentTab('home');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        return;
-      }
+     // if (currentTab !== 'home') {
+       // setCurrentTab('home');
+        //window.scrollTo({ top: 0, behavior: 'smooth' });
+        //return;
+     // }
     };
 
     window.addEventListener('popstate', handlePopState);
