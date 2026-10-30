@@ -206,7 +206,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newBookTitle, setNewBookTitle] = useState('');
   const [newBookTitleAr, setNewBookTitleAr] = useState('');
   const [newBookUnivCode, setNewBookUnivCode] = useState<string>('UAE');
-  const [newBookAffiliatedFaculty, setNewBookAffiliatedFaculty] = useState<string>(UNIVERSITIES_DATABASE[0].faculties[0]);
+  const [newBookAffiliatedFaculty, setNewBookAffiliatedFaculty] = useState<string>(UNIVERSITIES_DATABASE?.[0]?.faculties?.[0] || '');
   const [newBookFaculty, setNewBookFaculty] = useState<FacultyType>('droit');
   const [newBookSemester, setNewBookSemester] = useState<SemesterType>('S1');
   const [newBookSpecialty, setNewBookSpecialty] = useState('');
@@ -228,8 +228,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Form states: Dispatch Key
   const [dispatchStudentEmail, setDispatchStudentEmail] = useState('etudiant@univ.ac.ma');
   const [dispatchStudentId, setDispatchStudentId] = useState('ETU-2026-9482');
-  const [dispatchBookId, setDispatchBookId] = useState(books[0]?.id || '');
-
+  const [dispatchBookId, setDispatchBookId] = useState(books?.[0]?.id || '');
   // Form states: New Professor
   const [newProfName, setNewProfName] = useState('');
   const [newProfEmail, setNewProfEmail] = useState('');
