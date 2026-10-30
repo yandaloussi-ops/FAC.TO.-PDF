@@ -133,7 +133,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [loadingOrders, setLoadingOrders] = useState<boolean>(true);
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null);
   const [selectedReceiptUrl, setSelectedReceiptUrl] = useState<string | null>(null);
-
+return (
+    <div className="pt-32 pb-32 text-center text-4xl text-black font-bold z-50 relative mt-40">
+      مكون لوحة التحكم تم تحميله ويعمل بنجاح!
+    </div>
+  );
   // جلب طلبات الشراء حياً من Firestore
   //useEffect(() => {
    // const ordersQuery = query(collection(db, 'paymentOrders'), orderBy('createdAt', 'desc'));
