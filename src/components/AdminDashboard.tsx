@@ -26,8 +26,8 @@ import {
 } from '../utils/storage';
 import { saveBookPdf, getPdfPageCount } from '../utils/pdfStorage';
 import { useAcademicStructure, registerDynamicAcademicUnit } from '../utils/academicStructureStorage';
-//import { db } from '../firebase';
-//import { collection, onSnapshot, doc, updateDoc, query, orderBy } from 'firebase/firestore';
+import { db } from '../firebase';
+import { collection, onSnapshot, doc, updateDoc, query, orderBy } from 'firebase/firestore';
 import {
   BookOpen,
   Eye,
@@ -133,28 +133,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [loadingOrders, setLoadingOrders] = useState<boolean>(true);
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null);
   const [selectedReceiptUrl, setSelectedReceiptUrl] = useState<string | null>(null);
-return (
-    <div className="pt-32 pb-32 text-center text-4xl text-black font-bold z-50 relative mt-40">
-      مكون لوحة التحكم تم تحميله ويعمل بنجاح!
-    </div>
-  );
-  // جلب طلبات الشراء حياً من Firestore
-  //useEffect(() => {
-   // const ordersQuery = query(collection(db, 'paymentOrders'), orderBy('createdAt', 'desc'));
-   // const unsubscribe = onSnapshot(ordersQuery, (snapshot) => {
-    //  const fetchedOrders: PaymentOrder[] = snapshot.docs.map((doc) => ({
-   //     id: doc.id,
-   //     ...doc.data(),
- //     })) as PaymentOrder[];
-   //   setOrders(fetchedOrders);
-  //    setLoadingOrders(false);
- //   }, (error) => {
-  //    console.error("Error fetching orders:", error);
-  //    setLoadingOrders(false);
-//    });
 
- //   return () => unsubscribe();
-//  }, []);
+  // جلب طلبات الشراء حياً من Firestore
+ useEffect(() => {
+   const ordersQuery = query(collection(db, 'paymentOrders'), orderBy('createdAt', 'desc'));
+   const unsubscribe = onSnapshot(ordersQuery, (snapshot) => {
+      const fetchedOrders: PaymentOrder[] = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as PaymentOrder[];
+      setOrders(fetchedOrders);
+      setLoadingOrders(false);
+    }, (error) => {
+      console.error("Error fetching orders:", error);
+     setLoadingOrders(false);
+    });
+
+   return () => unsubscribe();
+  }, []);
 
   // دالة تفعيل الطلب
   const handleApproveOrder = async (order: PaymentOrder) => {
