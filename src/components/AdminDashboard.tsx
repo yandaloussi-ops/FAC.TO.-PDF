@@ -1631,7 +1631,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   {lang === 'fr' ? 'Total Encaissé Brut' : 'إجمالي المداخيل المحصلة'}
                 </div>
                 <div className="text-xl font-black text-white font-mono tabular-nums">
-                  {adminCommercialAccount.totalCollectedGrossMAD.toLocaleString()} DH
+                  (adminCommercialAccount?.totalCollectedGrossMAD || 0).toLocaleString()
                 </div>
                 <div className="text-[10px] text-emerald-400 mt-1">100% collecté sur compte admin</div>
               </div>
