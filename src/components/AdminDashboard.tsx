@@ -126,7 +126,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onReturnHome,
   onLockAdmin,
   onOpenReader,
-  lang,
+  lang: externalLang = 'ar',
+}) => {
+  const [lang, setLang] = useState<'ar' | 'fr'>(externalLang);
+
+  useEffect(() => {
+    setLang(externalLang);
+  }, [externalLang]);
 }) => {
   // --- حالات ودالة إدارة طلبات كاش بلاس ---
   const [orders, setOrders] = useState<PaymentOrder[]>([]);
