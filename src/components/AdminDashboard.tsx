@@ -175,11 +175,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [activeTab, setActiveTab] = useState<'books' | 'licenses' | 'professors' | 'students' | 'faculties' | 'commercial' | 'payouts' | 'security'>('books');
   const [searchFilter, setSearchFilter] = useState('');
   const [currentLang, setCurrentLang] = useState<'ar' | 'fr'>(lang || 'ar');
-  useEffect(() => {
-  if (lang) {
-    setCurrentLang(lang);
-  }
-}, [lang]);
+  //useEffect(() => {
+  //if (lang) {
+    //setCurrentLang(lang);
+  //}
+//}, [lang]);
   // Security & Data Protection states
   const [securityConfig, setSecurityConfig] = useState<SecurityShieldConfig>(INITIAL_SECURITY_CONFIG);
   const [auditLogs, setAuditLogs] = useState<SecurityAuditLog[]>(INITIAL_SECURITY_AUDIT_LOGS);
