@@ -8,7 +8,6 @@ import {
   FacultyItem,
   FacultyType,
   SemesterType,
-  safeAdminAccount,
   PaymentOrder,
   SecurityAuditLog,
   SecurityShieldConfig,
