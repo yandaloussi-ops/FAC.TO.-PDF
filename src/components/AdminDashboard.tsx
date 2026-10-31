@@ -128,7 +128,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   lang: externalLang = 'ar',
 }) => {
   const [lang, setLang] = useState<'ar' | 'fr'>(externalLang);
-
+const safeAdminAccount = adminCommercialAccount;
   useEffect(() => {
     setLang(externalLang);
   }, [externalLang]);
