@@ -1611,8 +1611,8 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   <div className="text-[11px] font-mono text-amber-400 uppercase tracking-wider font-bold">
                     {lang === 'fr' ? 'Compte Bancaire Régie Centrale d\'Encaissement' : 'الحساب البنكي التجاري المركزي لإدارة المنصة'}
                   </div>
-                  <h2 className="text-xl font-bold text-white">{adminCommercialAccount.holderName}</h2>
-                  <div className="text-xs text-stone-400">{adminCommercialAccount.bankName} · {adminCommercialAccount.agencyCity}</div>
+                 <h2 className="text-xl font-bold text-white">{adminCommercialAccount?.holderName || 'حساب الإدارة التجاري'}</h2>
+                 <div className="text-xs text-stone-400">{adminCommercialAccount?.bankName || ''} • {adminCommercialAccount?.agencyCity || ''}</div>
                 </div>
               </div>
 
