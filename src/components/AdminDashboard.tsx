@@ -8,7 +8,7 @@ import {
   FacultyItem,
   FacultyType,
   SemesterType,
-  AdminCommercialAccount,
+  safeAdminAccount,
   PaymentOrder,
   SecurityAuditLog,
   SecurityShieldConfig,
@@ -92,7 +92,7 @@ interface AdminDashboardProps {
   faculties: FacultyItem[];
   onAddFaculty: (newFaculty: FacultyItem) => void;
   payoutTransactions: PayoutTransaction[];
-  adminCommercialAccount: AdminCommercialAccount;
+  safeAdminAccount: safeAdminAccount;
   paymentOrders: PaymentOrder[];
   onReturnHome?: () => void;
   onLockAdmin?: () => void;
@@ -121,7 +121,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   faculties = [],
   onAddFaculty,
   payoutTransactions = [],
-  adminCommercialAccount = { holderName: 'حساب الإدارة التجاري', bankName: '', agencyCity: '', bankRib: '', swift: '' },
+  safeAdminAccount = { holderName: 'حساب الإدارة التجاري', bankName: '', agencyCity: '', bankRib: '', swift: '' },
   paymentOrders = [],
   onReturnHome,
   onLockAdmin,
@@ -138,7 +138,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [loadingOrders, setLoadingOrders] = useState<boolean>(true);
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null);
   const [selectedReceiptUrl, setSelectedReceiptUrl] = useState<string | null>(null);
-
+const safeAdminAccount = {
+    holderName: 'حساب الإدارة التجاري',
+    bankName: '',
+    agencyCity: '',
+    bankRib: '',
+    swift: '',
+    professorsTotalEarnedMAD: 0,
+    professorsTotalPaidMAD: 0,
+    professorsPendingMAD: 0,
+    totalCollectedGrossMAD: 0,
+    ...safeAdminAccount
+  };
   // جلب طلبات الشراء حياً من Firestore
  useEffect(() => {
    const ordersQuery = query(collection(db, 'paymentOrders'), orderBy('createdAt', 'desc'));
@@ -639,7 +650,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
       backupDate: new Date().toISOString(),
       encryption: 'AES-256-GCM',
       appletId: 'FAC-EN-PDF-MAROC',
-      commercialAccount: adminCommercialAccount,
+      commercialAccount: safeAdminAccount,
       universitiesCount: UNIVERSITIES_DATABASE.length,
       booksCount: books?.length || 0,
       professorsCount: professors?.length || 0,
@@ -1611,8 +1622,8 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   <div className="text-[11px] font-mono text-amber-400 uppercase tracking-wider font-bold">
                     {lang === 'fr' ? 'Compte Bancaire Régie Centrale d\'Encaissement' : 'الحساب البنكي التجاري المركزي لإدارة المنصة'}
                   </div>
-                 <h2 className="text-xl font-bold text-white">{adminCommercialAccount?.holderName || 'حساب الإدارة التجاري'}</h2>
-                 <div className="text-xs text-stone-400">{adminCommercialAccount?.bankName || ''} • {adminCommercialAccount?.agencyCity || ''}</div>
+                 <h2 className="text-xl font-bold text-white">{safeAdminAccount?.holderName || 'حساب الإدارة التجاري'}</h2>
+                 <div className="text-xs text-stone-400">{safeAdminAccount?.bankName || ''} • {safeAdminAccount?.agencyCity || ''}</div>
                 </div>
               </div>
 
@@ -1620,7 +1631,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                 <div className="text-[10px] text-stone-400 uppercase tracking-wider">
                   {lang === 'fr' ? 'RIB Bancaire d\'Encaissement (24 Chiffres)' : 'رقم الحساب التجاري للتحصيل (RIB)'}
                 </div>
-                <div className="text-xs sm:text-sm font-bold text-amber-300">{adminCommercialAccount?.bankRib || ''}</div>
+                <div className="text-xs sm:text-sm font-bold text-amber-300">{safeAdminAccount?.bankRib || ''}</div>
               </div>
             </div>
 
@@ -1631,7 +1642,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   {lang === 'fr' ? 'Total Encaissé Brut' : 'إجمالي المداخيل المحصلة'}
                 </div>
                 <div className="text-xl font-black text-white font-mono tabular-nums">
-                  (adminCommercialAccount?.totalCollectedGrossMAD || 0).toLocaleString()
+                  (safeAdminAccount?.totalCollectedGrossMAD || 0).toLocaleString()
                 </div>
                 <div className="text-[10px] text-emerald-400 mt-1">100% collecté sur compte admin</div>
               </div>
@@ -1641,7 +1652,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   {lang === 'fr' ? 'Part Nette Plateforme (20%)' : 'عمولة المنصة الصافية (20%)'}
                 </div>
                 <div className="text-xl font-black text-amber-300 font-mono tabular-nums">
-                  {adminCommercialAccount.platformNetEarningsMAD.toLocaleString()} DH
+                  {safeAdminAccount.platformNetEarningsMAD.toLocaleString()} DH
                 </div>
                 <div className="text-[10px] text-stone-400 mt-1">Revenu d'exploitation net</div>
               </div>
@@ -1651,7 +1662,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   {lang === 'fr' ? 'Part Droits d\'Auteurs (80%)' : 'مستحقات الأساتذة (80%)'}
                 </div>
                 <div className="text-xl font-black text-white font-mono tabular-nums">
-                  {(adminCommercialAccount?.professorsTotalEarnedMAD || 0).toLocaleString()} DH
+                  {(safeAdminAccount?.professorsTotalEarnedMAD || 0).toLocaleString()} DH
                 </div>
                 <div className="text-[10px] text-stone-400 mt-1">Droits d'auteurs globaux</div>
               </div>
@@ -1661,9 +1672,9 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   {lang === 'fr' ? 'Déjà Transféré aux Profs' : 'المحول فعلياً للأساتذة'}
                 </div>
                 <div className="text-xl font-black text-emerald-400 font-mono tabular-nums">
-                  {(adminCommercialAccount?.professorsTotalPaidMAD || 0).toLocaleString()} DH
+                  {(safeAdminAccount?.professorsTotalPaidMAD || 0).toLocaleString()} DH
                 </div>
-                {(adminCommercialAccount?.professorsPendingMAD || 0).toLocaleString()} DH en attente
+                {(safeAdminAccount?.professorsPendingMAD || 0).toLocaleString()} DH en attente
               </div>
             </div>
           </div>
@@ -1983,7 +1994,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                       {lang === 'fr' ? 'Compte de Destination Sécurisé' : 'الحساب البنكي المعتمد للإدارة'}
                     </div>
                     <div className="text-[11px] text-stone-500 font-mono">
-                      RIB : {adminCommercialAccount.bankRib}
+                      RIB : {safeAdminAccount.bankRib}
                     </div>
                   </div>
 
