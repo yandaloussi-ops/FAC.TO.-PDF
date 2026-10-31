@@ -1620,7 +1620,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                 <div className="text-[10px] text-stone-400 uppercase tracking-wider">
                   {lang === 'fr' ? 'RIB Bancaire d\'Encaissement (24 Chiffres)' : 'رقم الحساب التجاري للتحصيل (RIB)'}
                 </div>
-                <div className="text-xs sm:text-sm font-bold text-amber-300">{adminCommercialAccount.bankRib}</div>
+                <div className="text-xs sm:text-sm font-bold text-amber-300">{adminCommercialAccount?.bankRib || ''}</div>
               </div>
             </div>
 
