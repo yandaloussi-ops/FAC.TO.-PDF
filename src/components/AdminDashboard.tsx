@@ -121,7 +121,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   faculties = [],
   onAddFaculty,
   payoutTransactions = [],
-  adminCommercialAccount,
+  adminCommercialAccount = { holderName: 'حساب الإدارة التجاري', bankName: '', agencyCity: '', bankRib: '', swift: '' },
   paymentOrders = [],
   onReturnHome,
   onLockAdmin,
