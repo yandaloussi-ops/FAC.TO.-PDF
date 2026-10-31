@@ -126,8 +126,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onReturnHome,
   onLockAdmin,
   onOpenReader,
- lang = 'ar',
-  onToggleLang,
+  lang,
 }) => {
   // --- حالات ودالة إدارة طلبات كاش بلاس ---
   const [orders, setOrders] = useState<PaymentOrder[]>([]);
@@ -174,12 +173,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
   const [activeTab, setActiveTab] = useState<'books' | 'licenses' | 'professors' | 'students' | 'faculties' | 'commercial' | 'payouts' | 'security'>('books');
   const [searchFilter, setSearchFilter] = useState('');
-  const [currentLang, setCurrentLang] = useState<'ar' | 'fr'>(lang || 'ar');
-  //useEffect(() => {
-  //if (lang) {
-    //setCurrentLang(lang);
-  //}
-//}, [lang]);
+
   // Security & Data Protection states
   const [securityConfig, setSecurityConfig] = useState<SecurityShieldConfig>(INITIAL_SECURITY_CONFIG);
   const [auditLogs, setAuditLogs] = useState<SecurityAuditLog[]>(INITIAL_SECURITY_AUDIT_LOGS);
@@ -263,7 +257,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
-        alert(currentLang === 'fr' ? 'Veuillez sélectionner un fichier PDF valide (.pdf)' : 'يرجى اختيار ملف بصيغة PDF (.pdf)');
+        alert(lang === 'fr' ? 'Veuillez sélectionner un fichier PDF valide (.pdf)' : 'يرجى اختيار ملف بصيغة PDF (.pdf)');
         return;
       }
       try {
@@ -273,7 +267,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           onUpdateBookPdf(bookId, objectUrl, pageCount || undefined, file.name);
         }
         setAdminPdfToast(
-          currentLang === 'fr'
+          lang === 'fr'
             ? `Fichier PDF "${file.name}" (${pageCount ? `${pageCount} pages, ` : ''}${(file.size / (1024 * 1024)).toFixed(1)} Mo) enregistré et indexé avec succès !`
             : `تم رفع ملف "${file.name}" (${pageCount ? `${pageCount} صفحة، ` : ''}${(file.size / (1024 * 1024)).toFixed(1)} ميغابايت) وتخزينه بنجاح وإتاحته للطلبة!`
         );
@@ -306,24 +300,24 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
     const currentSavedPin = getStoredAdminPin();
     if (adminCurrentPinInput.trim() !== currentSavedPin) {
-      setAdminPinChangeError(currentLang === 'fr' ? 'Le code PIN actuel est incorrect.' : 'الرقم السري الحالي للإدارة غير صحيح.');
+      setAdminPinChangeError(lang === 'fr' ? 'Le code PIN actuel est incorrect.' : 'الرقم السري الحالي للإدارة غير صحيح.');
       return;
     }
 
     if (!adminNewPinInput.trim() || adminNewPinInput.trim().length < 6) {
-      setAdminPinChangeError(currentLang === 'fr' ? 'Le nouveau code secret doit comporter au moins 6 caractères.' : 'يجب أن يتكون الرقم السري الجديد من 6 خانات على الأقل.');
+      setAdminPinChangeError(lang === 'fr' ? 'Le nouveau code secret doit comporter au moins 6 caractères.' : 'يجب أن يتكون الرقم السري الجديد من 6 خانات على الأقل.');
       return;
     }
 
     if (adminNewPinInput.trim() !== adminConfirmPinInput.trim()) {
-      setAdminPinChangeError(currentLang === 'fr' ? 'Les deux codes secrets ne correspondent pas.' : 'الرقم السري الجديد وتأكيده غير متطابقين.');
+      setAdminPinChangeError(lang === 'fr' ? 'Les deux codes secrets ne correspondent pas.' : 'الرقم السري الجديد وتأكيده غير متطابقين.');
       return;
     }
 
     const saved = saveStoredAdminPin(adminNewPinInput.trim());
     if (saved) {
       if (onUpdateAdminPin) onUpdateAdminPin(adminNewPinInput.trim());
-      setAdminPinChangeSuccess(currentLang === 'fr' ? 'Code secret administrateur mis à jour avec succès.' : 'تم تغيير وتأمين الرقم السري للإدارة بنجاح.');
+      setAdminPinChangeSuccess(lang === 'fr' ? 'Code secret administrateur mis à jour avec succès.' : 'تم تغيير وتأمين الرقم السري للإدارة بنجاح.');
       setTimeout(() => {
         setIsChangeAdminPinOpen(false);
         setAdminCurrentPinInput('');
@@ -332,7 +326,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
         setAdminPinChangeSuccess(null);
       }, 2000);
     } else {
-      setAdminPinChangeError(currentLang === 'fr' ? 'Erreur lors de la sauvegarde.' : 'تعذر حفظ الرقم السري.');
+      setAdminPinChangeError(lang === 'fr' ? 'Erreur lors de la sauvegarde.' : 'تعذر حفظ الرقم السري.');
     }
   };
 
@@ -615,7 +609,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
         databaseChecksum: randomChecksum,
       }));
       setIntegrityScanResult(
-        currentLang === 'fr'
+        lang === 'fr'
           ? 'Intégrité 100% Validée : Les tables (12 universités, polycopiés, comptes enseignants, licences DRM) sont conformes et sans altération.'
           : 'تم فحص سلامة البيانات بنجاح: تطابق كامل وتشفير سليم لجميع الجداول وقواعد البيانات.'
       );
@@ -661,7 +655,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
     URL.revokeObjectURL(url);
 
     setBackupExportSuccess(
-      currentLang === 'fr'
+      lang === 'fr'
         ? 'Sauvegarde chiffrée exportée avec succès (Format JSON certifié).'
         : 'تم تصدير النسخة الاحتياطية المشفرة بنجاح.'
     );
@@ -758,7 +752,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
             className="flex items-center gap-1.5 text-xs font-bold text-amber-800 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg border border-amber-200 transition-colors cursor-pointer"
           >
             <span>←</span>
-            <span>{currentLang === 'fr' ? 'Revenir à la page d\'Accueil' : 'العودة إلى الصفحة الرئيسية'}</span>
+            <span>{lang === 'fr' ? 'Revenir à la page d\'Accueil' : 'العودة إلى الصفحة الرئيسية'}</span>
           </button>
         ) : <div />}
 
@@ -784,7 +778,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
             title="Modifier le code secret administrateur"
           >
             <KeyRound className="w-3.5 h-3.5 text-stone-950" />
-            <span>{currentLang === 'fr' ? 'Changer PIN Admin' : 'تغيير الرقم السري للإدارة'}</span>
+            <span>{lang === 'fr' ? 'Changer PIN Admin' : 'تغيير الرقم السري للإدارة'}</span>
           </button>
 
           {onLockAdmin && (
@@ -794,37 +788,26 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               title="Verrouiller la console pour protéger les données"
             >
               <Lock className="w-3.5 h-3.5 text-rose-600" />
-              <span>{currentLang === 'fr' ? 'Verrouiller' : 'قفل لوحة المدير'}</span>
+              <span>{lang === 'fr' ? 'Verrouiller' : 'قفل لوحة المدير'}</span>
             </button>
           )}
 
           <span className="text-xs text-stone-500 font-medium hidden sm:inline">
-          {currentcurrentLang === 'fr' ? 'Session Super-Admin' : 'جلسة الإدارة'}
+            {lang === 'fr' ? 'Session Super-Admin' : 'جلسة الإدارة'}
           </span>
         </div>
       </div>
-{/* زر تغيير اللغة */}
-<button
-  type="button"
-  onClick={() => {
-    const nextLang = currentLang === 'ar' ? 'fr' : 'ar';
-    setCurrentLang(nextLang);
-    if (onToggleLang) onToggleLang();
-  }}
-  className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 rounded-md text-xs font-bold transition-all border border-amber-500/30 cursor-pointer"
->
-  <span>{currentcurrentLang === 'fr' ? 'العربية' : 'Français'}</span>
-</button>
+
       {/* Admin Top Header & Global Metrics */}
       <div className="mb-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-stone-200">
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200 w-fit mb-2">
               <ShieldCheck className="w-4 h-4 text-amber-600" />
-              <span>{currentLang === 'fr' ? 'Portail Administrateur & Régie' : 'فضاء إدارة المنصة والتحكم الأكاديمي'}</span>
+              <span>{lang === 'fr' ? 'Portail Administrateur & Régie' : 'فضاء إدارة المنصة والتحكم الأكاديمي'}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-stone-900 tracking-tight">
-              {currentLang === 'fr' ? 'Tableau de Bord de Gestion FAC en PDF' : 'لوحة قيادة إدارة الكتب والأساتذة والتراخيص'}
+              {lang === 'fr' ? 'Tableau de Bord de Gestion FAC en PDF' : 'لوحة قيادة إدارة الكتب والأساتذة والتراخيص'}
             </h1>
           </div>
 
@@ -834,7 +817,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               className="flex items-center gap-1.5 px-4 py-2 bg-stone-900 hover:bg-stone-800 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer shadow-xs"
             >
               <Plus className="w-4 h-4" />
-              <span>{currentLang === 'fr' ? 'Ajouter un Livre' : 'إضافة كتاب جديد'}</span>
+              <span>{lang === 'fr' ? 'Ajouter un Livre' : 'إضافة كتاب جديد'}</span>
             </button>
 
             <button
@@ -842,7 +825,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               className="flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold text-xs rounded-lg transition-colors cursor-pointer shadow-xs"
             >
               <Send className="w-4 h-4" />
-              <span>{currentLang === 'fr' ? 'Envoyer Licence DRM' : 'إصدار رخصة دخول'}</span>
+              <span>{lang === 'fr' ? 'Envoyer Licence DRM' : 'إصدار رخصة دخول'}</span>
             </button>
           </div>
         </div>
@@ -851,7 +834,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
           <div className="p-4 bg-white border border-stone-200 rounded-xl">
             <div className="flex items-center justify-between text-xs text-stone-500 mb-1">
-              <span>{currentLang === 'fr' ? 'Souscriptions & Encaissements' : 'إجمالي الاشتراكات الأكاديمية'}</span>
+              <span>{lang === 'fr' ? 'Souscriptions & Encaissements' : 'إجمالي الاشتراكات الأكاديمية'}</span>
               <DollarSign className="w-4 h-4 text-emerald-600" />
             </div>
             <div className="text-xl sm:text-2xl font-black text-stone-900 tabular-nums">
@@ -859,26 +842,26 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               <span className="text-xs font-normal text-stone-500">DH</span>
             </div>
             <div className="text-[11px] text-emerald-700 font-medium mt-1">
-              {currentLang === 'fr' ? 'Reversements garantis' : 'عائدات مؤكدة'}
+              {lang === 'fr' ? 'Reversements garantis' : 'عائدات مؤكدة'}
             </div>
           </div>
 
           <div className="p-4 bg-white border border-stone-200 rounded-xl">
             <div className="flex items-center justify-between text-xs text-stone-500 mb-1">
-              <span>{currentLang === 'fr' ? 'Licences DRM Émises' : 'التراخيص المفعلة'}</span>
+              <span>{lang === 'fr' ? 'Licences DRM Émises' : 'التراخيص المفعلة'}</span>
               <KeyRound className="w-4 h-4 text-amber-600" />
             </div>
             <div className="text-xl sm:text-2xl font-black text-stone-900 tabular-nums">
               {drmLicenses?.length || 0}
             </div>
             <div className="text-[11px] text-stone-500 mt-1">
-              {currentLang === 'fr' ? 'Protection in-app active' : 'حماية مشددة'}
+              {lang === 'fr' ? 'Protection in-app active' : 'حماية مشددة'}
             </div>
           </div>
 
           <div className="p-4 bg-white border border-stone-200 rounded-xl">
             <div className="flex items-center justify-between text-xs text-stone-500 mb-1">
-              <span>{currentLang === 'fr' ? 'Reversé aux Professeurs' : 'المحول للأساتذة'}</span>
+              <span>{lang === 'fr' ? 'Reversé aux Professeurs' : 'المحول للأساتذة'}</span>
               <CreditCard className="w-4 h-4 text-sky-600" />
             </div>
             <div className="text-xl sm:text-2xl font-black text-stone-900 tabular-nums">
@@ -892,14 +875,14 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
           <div className="p-4 bg-white border border-stone-200 rounded-xl">
             <div className="flex items-center justify-between text-xs text-stone-500 mb-1">
-              <span>{currentLang === 'fr' ? 'Enseignants Partenaires' : 'الأساتذة والمؤلفين'}</span>
+              <span>{lang === 'fr' ? 'Enseignants Partenaires' : 'الأساتذة والمؤلفين'}</span>
               <Users className="w-4 h-4 text-indigo-600" />
             </div>
             <div className="text-xl sm:text-2xl font-black text-stone-900 tabular-nums">
               {professors?.length || 0}
             </div>
             <div className="text-[11px] text-stone-500 mt-1">
-              {books?.length || 0} {currentLang === 'fr' ? 'ouvrages actifs' : 'مقررات مسجلة'}
+              {books?.length || 0} {lang === 'fr' ? 'ouvrages actifs' : 'مقررات مسجلة'}
             </div>
           </div>
         </div>
@@ -916,7 +899,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           }`}
         >
           <BookOpen className="w-3.5 h-3.5" />
-          <span>{currentLang === 'fr' ? 'Livres & Polycopiés' : 'إدارة الكتب والمقررات'}</span>
+          <span>{lang === 'fr' ? 'Livres & Polycopiés' : 'إدارة الكتب والمقررات'}</span>
           <span className="text-[11px] font-mono bg-stone-700/40 text-stone-200 px-1.5 py-0.2 rounded">
             {books?.length || 0}
           </span>
@@ -931,7 +914,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           }`}
         >
           <KeyRound className="w-3.5 h-3.5" />
-          <span>{currentLang === 'fr' ? 'Licences DRM & Accès' : 'تراخيص وأكواد الدخول'}</span>
+          <span>{lang === 'fr' ? 'Licences DRM & Accès' : 'تراخيص وأكواد الدخول'}</span>
           <span className="text-[11px] font-mono bg-stone-700/40 text-stone-200 px-1.5 py-0.2 rounded">
             {drmLicenses?.length || 0}
           </span>
@@ -946,7 +929,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           }`}
         >
           <Users className="w-3.5 h-3.5" />
-          <span>{currentLang === 'fr' ? 'Comptes des Enseignants' : 'حسابات الأساتذة والمستحقات'}</span>
+          <span>{lang === 'fr' ? 'Comptes des Enseignants' : 'حسابات الأساتذة والمستحقات'}</span>
           <span className="text-[11px] font-mono bg-stone-700/40 text-stone-200 px-1.5 py-0.2 rounded">
             {professors?.length || 0}
           </span>
@@ -962,7 +945,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           }`}
         >
           <GraduationCap className="w-3.5 h-3.5 text-emerald-400" />
-          <span>{currentLang === 'fr' ? 'Comptes des Étudiants' : 'حسابات الطلبة المسجلين'}</span>
+          <span>{lang === 'fr' ? 'Comptes des Étudiants' : 'حسابات الطلبة المسجلين'}</span>
           <span className="text-[11px] font-mono bg-stone-700/40 text-stone-200 px-1.5 py-0.2 rounded">
             {students?.length || 0}
           </span>
@@ -977,7 +960,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           }`}
         >
           <Building2 className="w-3.5 h-3.5" />
-          <span>{currentLang === 'fr' ? 'Facultés & Départements' : 'الكليات والمؤسسات'}</span>
+          <span>{lang === 'fr' ? 'Facultés & Départements' : 'الكليات والمؤسسات'}</span>
           <span className="text-[11px] font-mono bg-stone-700/40 text-stone-200 px-1.5 py-0.2 rounded">
             {faculties?.length || 0}
           </span>
@@ -992,7 +975,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           }`}
         >
           <Landmark className="w-3.5 h-3.5" />
-          <span>{currentLang === 'fr' ? 'Compte Commercial & Encaissement Admin' : 'التحصيل التجاري وحساب الإدارة'}</span>
+          <span>{lang === 'fr' ? 'Compte Commercial & Encaissement Admin' : 'التحصيل التجاري وحساب الإدارة'}</span>
           <span className="text-[11px] font-mono bg-amber-950/20 text-stone-950 px-1.5 py-0.2 rounded font-bold">
             {paymentOrders?.length || 0}
           </span>
@@ -1007,7 +990,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           }`}
         >
           <CreditCard className="w-3.5 h-3.5" />
-          <span>{currentLang === 'fr' ? 'Relevé des Virements' : 'سجل التحويلات البنكية'}</span>
+          <span>{lang === 'fr' ? 'Relevé des Virements' : 'سجل التحويلات البنكية'}</span>
           <span className="text-[11px] font-mono bg-stone-700/40 text-stone-200 px-1.5 py-0.2 rounded">
             {payoutTransactions.length}
           </span>
@@ -1023,7 +1006,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           }`}
         >
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-          <span>{currentLang === 'fr' ? 'Protection & Sécurité BDD' : 'الأمان وحماية المعطيات'}</span>
+          <span>{lang === 'fr' ? 'Protection & Sécurité BDD' : 'الأمان وحماية المعطيات'}</span>
           <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded uppercase">
             CNDP / CMI
           </span>
@@ -1036,10 +1019,10 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           <div className="p-4 border-b border-stone-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-stone-50/50">
             <div>
               <h2 className="text-sm font-bold text-stone-900">
-                {currentLang === 'fr' ? 'Inventaire des Polycopiés et Manuels' : 'قائمة المقررات والكتب المفعلة في المنصة'}
+                {lang === 'fr' ? 'Inventaire des Polycopiés et Manuels' : 'قائمة المقررات والكتب المفعلة في المنصة'}
               </h2>
               <p className="text-xs text-stone-500">
-                {currentLang === 'fr'
+                {lang === 'fr'
                   ? 'Contrôlez les tarifs préférentiels étudiants, les affectations départementales et la disponibilité in-app.'
                   : 'التحكم في التعريفات التفضيلية للطلبة، نسبة المعاينة المجانية، وإسناد المقررات للأساتذة.'}
               </p>
@@ -1050,7 +1033,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               className="flex items-center gap-1.5 px-3.5 py-1.5 bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>{currentLang === 'fr' ? 'Nouveau Livre' : 'إضافة كتاب'}</span>
+              <span>{lang === 'fr' ? 'Nouveau Livre' : 'إضافة كتاب'}</span>
             </button>
           </div>
 
@@ -1074,12 +1057,12 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
             <table className="w-full text-left text-xs">
               <thead className="bg-stone-100/70 border-b border-stone-200 text-stone-600 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
-                  <th className="py-3 px-4">{currentLang === 'fr' ? 'Titre & Discipline' : 'اسم الكتاب / المادة'}</th>
-                  <th className="py-3 px-4">{currentLang === 'fr' ? 'Faculté / Semestre' : 'الكلية / الفصل'}</th>
-                  <th className="py-3 px-4">{currentLang === 'fr' ? 'Professeur / Auteur' : 'الأستاذ المؤلف'}</th>
-                  <th className="py-3 px-4 text-right">{currentLang === 'fr' ? 'Prix Étudiant' : 'سعر الطالب'}</th>
-                  <th className="py-3 px-4 text-center">{currentLang === 'fr' ? 'Statut DRM' : 'حالة الحماية'}</th>
-                  <th className="py-3 px-4 text-right">{currentLang === 'fr' ? 'Actions' : 'إجراءات'}</th>
+                  <th className="py-3 px-4">{lang === 'fr' ? 'Titre & Discipline' : 'اسم الكتاب / المادة'}</th>
+                  <th className="py-3 px-4">{lang === 'fr' ? 'Faculté / Semestre' : 'الكلية / الفصل'}</th>
+                  <th className="py-3 px-4">{lang === 'fr' ? 'Professeur / Auteur' : 'الأستاذ المؤلف'}</th>
+                  <th className="py-3 px-4 text-right">{lang === 'fr' ? 'Prix Étudiant' : 'سعر الطالب'}</th>
+                  <th className="py-3 px-4 text-center">{lang === 'fr' ? 'Statut DRM' : 'حالة الحماية'}</th>
+                  <th className="py-3 px-4 text-right">{lang === 'fr' ? 'Actions' : 'إجراءات'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -1120,12 +1103,12 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                       {b.hasPdf || b.pdfUrl ? (
                         <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                           <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          <span>{currentLang === 'fr' ? `PDF (${b.totalPages || 0} p)` : `PDF مخزن (${b.totalPages || 0} ص)`}</span>
+                          <span>{lang === 'fr' ? `PDF (${b.totalPages || 0} p)` : `PDF مخزن (${b.totalPages || 0} ص)`}</span>
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                           <FileText className="w-3 h-3 text-amber-600" />
-                          <span>{currentLang === 'fr' ? 'Texte Structuré' : 'فصول نصية'}</span>
+                          <span>{lang === 'fr' ? 'Texte Structuré' : 'فصول نصية'}</span>
                         </span>
                       )}
                     </td>
@@ -1136,15 +1119,15 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                             type="button"
                             onClick={() => onOpenReader(b)}
                             className="px-2.5 py-1 text-xs font-bold text-amber-950 bg-amber-400 hover:bg-amber-300 rounded-lg transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
-                            title={currentLang === 'fr' ? 'Ouvrir et lire dans le lecteur sécurisé' : 'المطالعة داخل القارئ المشفر'}
+                            title={lang === 'fr' ? 'Ouvrir et lire dans le lecteur sécurisé' : 'المطالعة داخل القارئ المشفر'}
                           >
                             <BookOpen className="w-3.5 h-3.5" />
-                            <span>{currentLang === 'fr' ? 'Lire' : 'قراءة'}</span>
+                            <span>{lang === 'fr' ? 'Lire' : 'قراءة'}</span>
                           </button>
                         )}
                         <label
                           className="px-2.5 py-1 text-xs font-bold text-emerald-950 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-lg transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
-                          title={currentLang === 'fr' ? 'Uploader ou remplacer le fichier PDF de ce livre' : 'رفع أو استبدال ملف الـ PDF لهذا المقرر'}
+                          title={lang === 'fr' ? 'Uploader ou remplacer le fichier PDF de ce livre' : 'رفع أو استبدال ملف الـ PDF لهذا المقرر'}
                         >
                           <Upload className="w-3.5 h-3.5 text-emerald-800" />
                           <span>PDF</span>
@@ -1178,10 +1161,10 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           <div className="p-4 border-b border-stone-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-stone-50/50">
             <div>
               <h2 className="text-sm font-bold text-stone-900">
-                {currentLang === 'fr' ? 'Gestion des Licences & Codes d\'Accès DRM' : 'إدارة تراخيص القراءة وأكواد الوصول للطلبة'}
+                {lang === 'fr' ? 'Gestion des Licences & Codes d\'Accès DRM' : 'إدارة تراخيص القراءة وأكواد الوصول للطلبة'}
               </h2>
               <p className="text-xs text-stone-500">
-                {currentLang === 'fr'
+                {lang === 'fr'
                   ? 'Générez des codes individuels pour les étudiants ayant acheté en présentiel ou par virement.'
                   : 'توليد أكواد فردية للطلبة الذين قاموا باقتناء المطبوع وربطها بحساباتهم مباشرة.'}
               </p>
@@ -1192,7 +1175,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-stone-950 text-xs font-bold rounded-lg transition-colors cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>{currentLang === 'fr' ? 'Générer & Attribuer un Code' : 'توليد وإرسال رخصة'}</span>
+              <span>{lang === 'fr' ? 'Générer & Attribuer un Code' : 'توليد وإرسال رخصة'}</span>
             </button>
           </div>
 
@@ -1200,12 +1183,12 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
             <table className="w-full text-left text-xs">
               <thead className="bg-stone-100/70 border-b border-stone-200 text-stone-600 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
-                  <th className="py-3 px-4">{currentLang === 'fr' ? 'Clé DRM' : 'كود الترخيص'}</th>
-                  <th className="py-3 px-4">{currentLang === 'fr' ? 'Livre Assigné' : 'المقرر الأكاديمي'}</th>
-                  <th className="py-3 px-4">{currentLang === 'fr' ? 'Étudiant Bénéficiaire' : 'الطالب والبريد الجامعي'}</th>
-                  <th className="py-3 px-4">{currentLang === 'fr' ? 'Date d\'Émission' : 'تاريخ الإصدار'}</th>
-                  <th className="py-3 px-4 text-center">{currentLang === 'fr' ? 'État' : 'الحالة'}</th>
-                  <th className="py-3 px-4 text-right">{currentLang === 'fr' ? 'Action' : 'إجراء'}</th>
+                  <th className="py-3 px-4">{lang === 'fr' ? 'Clé DRM' : 'كود الترخيص'}</th>
+                  <th className="py-3 px-4">{lang === 'fr' ? 'Livre Assigné' : 'المقرر الأكاديمي'}</th>
+                  <th className="py-3 px-4">{lang === 'fr' ? 'Étudiant Bénéficiaire' : 'الطالب والبريد الجامعي'}</th>
+                  <th className="py-3 px-4">{lang === 'fr' ? 'Date d\'Émission' : 'تاريخ الإصدار'}</th>
+                  <th className="py-3 px-4 text-center">{lang === 'fr' ? 'État' : 'الحالة'}</th>
+                  <th className="py-3 px-4 text-right">{lang === 'fr' ? 'Action' : 'إجراء'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100 font-mono">
@@ -1241,7 +1224,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                           onClick={() => onRevokeLicense(lic.id)}
                           className="text-[11px] text-rose-600 hover:underline cursor-pointer"
                         >
-                          {currentLang === 'fr' ? 'Révoquer' : 'إلغاء الترخيص'}
+                          {lang === 'fr' ? 'Révoquer' : 'إلغاء الترخيص'}
                         </button>
                       ) : (
                         <span className="text-[11px] text-stone-400">Verrouillé</span>
@@ -1261,10 +1244,10 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           <div className="p-4 border-b border-stone-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-stone-50/50">
             <div>
               <h2 className="text-sm font-bold text-stone-900">
-                {currentLang === 'fr' ? 'Comptes des Enseignants & Droits d\'Auteur' : 'حسابات الأساتذة وتحويل مستحقات حقوق التأليف'}
+                {lang === 'fr' ? 'Comptes des Enseignants & Droits d\'Auteur' : 'حسابات الأساتذة وتحويل مستحقات حقوق التأليف'}
               </h2>
               <p className="text-xs text-stone-500">
-                {currentLang === 'fr'
+                {lang === 'fr'
                   ? 'Gérez les coordonnées bancaires (RIB), les taux de droits d\'auteur et initiez les virements.'
                   : 'تتبع الحسابات البنكية ومستحقات المقررات وإرسال التحويلات البنكية للأساتذة.'}
               </p>
@@ -1275,7 +1258,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               className="flex items-center gap-1.5 px-3.5 py-1.5 bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>{currentLang === 'fr' ? 'Ajouter un Enseignant' : 'إضافة حساب أستاذ'}</span>
+              <span>{lang === 'fr' ? 'Ajouter un Enseignant' : 'إضافة حساب أستاذ'}</span>
             </button>
           </div>
 
@@ -1283,13 +1266,13 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
             <table className="w-full text-left text-xs">
               <thead className="bg-stone-100/70 border-b border-stone-200 text-stone-600 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
-                  <th className="py-3 px-4">{currentLang === 'fr' ? 'Nom de l\'Enseignant' : 'الأستاذ والكلية'}</th>
-                  <th className="py-3 px-4">{currentLang === 'fr' ? 'RIB Bancaire & Agence' : 'الحساب البنكي (RIB)'}</th>
-                  <th className="py-3 px-4 text-center">{currentLang === 'fr' ? 'Taux Droits' : 'نسبة الأستاذ'}</th>
-                  <th className="py-3 px-4 text-center">{currentLang === 'fr' ? 'Statut' : 'الحالة'}</th>
-                  <th className="py-3 px-4 text-right">{currentLang === 'fr' ? 'Exemplaires' : 'النسخ المقتناة'}</th>
-                  <th className="py-3 px-4 text-right">{currentLang === 'fr' ? 'Solde à Reverser' : 'المبلغ المستحق'}</th>
-                  <th className="py-3 px-4 text-right">{currentLang === 'fr' ? 'Actions Administratives' : 'الإجراءات الإدارية'}</th>
+                  <th className="py-3 px-4">{lang === 'fr' ? 'Nom de l\'Enseignant' : 'الأستاذ والكلية'}</th>
+                  <th className="py-3 px-4">{lang === 'fr' ? 'RIB Bancaire & Agence' : 'الحساب البنكي (RIB)'}</th>
+                  <th className="py-3 px-4 text-center">{lang === 'fr' ? 'Taux Droits' : 'نسبة الأستاذ'}</th>
+                  <th className="py-3 px-4 text-center">{lang === 'fr' ? 'Statut' : 'الحالة'}</th>
+                  <th className="py-3 px-4 text-right">{lang === 'fr' ? 'Exemplaires' : 'النسخ المقتناة'}</th>
+                  <th className="py-3 px-4 text-right">{lang === 'fr' ? 'Solde à Reverser' : 'المبلغ المستحق'}</th>
+                  <th className="py-3 px-4 text-right">{lang === 'fr' ? 'Actions Administratives' : 'الإجراءات الإدارية'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -1309,11 +1292,11 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                     <td className="py-3 px-4 text-center">
                       {prof.status === 'suspended' ? (
                         <span className="text-[10px] font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full border border-rose-200">
-                          {currentLang === 'fr' ? 'Suspendu' : 'مجمد'}
+                          {lang === 'fr' ? 'Suspendu' : 'مجمد'}
                         </span>
                       ) : (
                         <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
-                          {currentLang === 'fr' ? 'Actif' : 'نشط'}
+                          {lang === 'fr' ? 'Actif' : 'نشط'}
                         </span>
                       )}
                     </td>
@@ -1334,7 +1317,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                           }}
                           className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[11px] rounded-md transition-colors cursor-pointer"
                         >
-                          {currentLang === 'fr' ? 'Virement' : 'تحويل'}
+                          {lang === 'fr' ? 'Virement' : 'تحويل'}
                         </button>
 
                         {onToggleProfessorStatus && (
@@ -1348,8 +1331,8 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                             }`}
                           >
                             {prof.status === 'suspended'
-                              ? (currentLang === 'fr' ? 'Activer' : 'تنشيط')
-                              : (currentLang === 'fr' ? 'Suspendre' : 'تجميد')}
+                              ? (lang === 'fr' ? 'Activer' : 'تنشيط')
+                              : (lang === 'fr' ? 'Suspendre' : 'تجميد')}
                           </button>
                         )}
 
@@ -1359,7 +1342,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                             onClick={() => {
                               if (
                                 window.confirm(
-                                  currentLang === 'fr'
+                                  lang === 'fr'
                                     ? `Confirmez-vous la suppression définitive du compte de l'enseignant ${prof.fullName} ?`
                                     : `هل تؤكد حذف وإلغاء حساب الأستاذ ${prof.fullName} نهائياً بقرار من الإدارة؟`
                                 )
@@ -1368,7 +1351,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                               }
                             }}
                             className="p-1 text-rose-600 hover:text-white hover:bg-rose-600 rounded-md transition-colors cursor-pointer"
-                            title={currentLang === 'fr' ? 'Supprimer définitivement ce compte' : 'إلغاء وحذف حساب الأستاذ'}
+                            title={lang === 'fr' ? 'Supprimer définitivement ce compte' : 'إلغاء وحذف حساب الأستاذ'}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -1390,13 +1373,13 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
             <div>
               <h2 className="text-sm font-bold text-stone-900 flex items-center gap-2">
                 <GraduationCap className="w-4 h-4 text-emerald-600" />
-                <span>{currentLang === 'fr' ? 'Gestion des Comptes Étudiants' : 'إدارة ومراقبة حسابات الطلبة المسجلين'}</span>
+                <span>{lang === 'fr' ? 'Gestion des Comptes Étudiants' : 'إدارة ومراقبة حسابات الطلبة المسجلين'}</span>
                 <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
-                  {students?.length || 0} {currentLang === 'fr' ? 'étudiants' : 'طالب'}
+                  {students?.length || 0} {lang === 'fr' ? 'étudiants' : 'طالب'}
                 </span>
               </h2>
               <p className="text-xs text-stone-500">
-                {currentLang === 'fr'
+                {lang === 'fr'
                   ? 'Contrôle des inscriptions étudiantes, consultation des cours acquis et possibilité de suspension ou suppression par l\'administration.'
                   : 'مراقبة حسابات الطلبة، تتبع الكتب المقتناة والتراخيص، مع صلاحية تجميد الحسابات أو حذفها نهائياً بقرار من الإدارة.'}
               </p>
@@ -1407,11 +1390,11 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
             <table className="w-full text-left text-xs">
               <thead className="bg-stone-100/70 border-b border-stone-200 text-stone-600 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
-                  <th className="py-3 px-4">{currentLang === 'fr' ? 'Étudiant & Identifiant' : 'اسم الطالب ورقم مسار'}</th>
-                  <th className="py-3 px-4">{currentLang === 'fr' ? 'Faculté & Université' : 'الجامعة والمؤسسة'}</th>
-                  <th className="py-3 px-4 text-center">{currentLang === 'fr' ? 'Livres Acquis' : 'الكتب المقتناة'}</th>
-                  <th className="py-3 px-4 text-center">{currentLang === 'fr' ? 'Statut' : 'الحالة'}</th>
-                  <th className="py-3 px-4 text-right">{currentLang === 'fr' ? 'Actions Administratives' : 'الإجراءات الإدارية'}</th>
+                  <th className="py-3 px-4">{lang === 'fr' ? 'Étudiant & Identifiant' : 'اسم الطالب ورقم مسار'}</th>
+                  <th className="py-3 px-4">{lang === 'fr' ? 'Faculté & Université' : 'الجامعة والمؤسسة'}</th>
+                  <th className="py-3 px-4 text-center">{lang === 'fr' ? 'Livres Acquis' : 'الكتب المقتناة'}</th>
+                  <th className="py-3 px-4 text-center">{lang === 'fr' ? 'Statut' : 'الحالة'}</th>
+                  <th className="py-3 px-4 text-right">{lang === 'fr' ? 'Actions Administratives' : 'الإجراءات الإدارية'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -1433,11 +1416,11 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                     <td className="py-3 px-4 text-center">
                       {stu.status === 'suspended' ? (
                         <span className="text-[10px] font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full border border-rose-200">
-                          {currentLang === 'fr' ? 'Suspendu' : 'مجمد'}
+                          {lang === 'fr' ? 'Suspendu' : 'مجمد'}
                         </span>
                       ) : (
                         <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
-                          {currentLang === 'fr' ? 'Actif' : 'نشط'}
+                          {lang === 'fr' ? 'Actif' : 'نشط'}
                         </span>
                       )}
                     </td>
@@ -1454,8 +1437,8 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                             }`}
                           >
                             {stu.status === 'suspended'
-                              ? (currentLang === 'fr' ? 'Activer' : 'تنشيط')
-                              : (currentLang === 'fr' ? 'Suspendre' : 'تجميد')}
+                              ? (lang === 'fr' ? 'Activer' : 'تنشيط')
+                              : (lang === 'fr' ? 'Suspendre' : 'تجميد')}
                           </button>
                         )}
 
@@ -1465,7 +1448,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                             onClick={() => {
                               if (
                                 window.confirm(
-                                  currentLang === 'fr'
+                                  lang === 'fr'
                                     ? `Voulez-vous vraiment supprimer définitivement le compte de l'étudiant ${stu.fullName} (${stu.studentId}) ?`
                                     : `هل تؤكد حذف وإلغاء حساب الطالب ${stu.fullName} (${stu.studentId}) نهائياً بقرار من الإدارة؟`
                                 )
@@ -1474,10 +1457,10 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                               }
                             }}
                             className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white font-bold text-[11px] rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-                            title={currentLang === 'fr' ? 'Supprimer définitivement ce compte' : 'إلغاء وحذف حساب الطالب'}
+                            title={lang === 'fr' ? 'Supprimer définitivement ce compte' : 'إلغاء وحذف حساب الطالب'}
                           >
                             <Trash2 className="w-3 h-3" />
-                            <span>{currentLang === 'fr' ? 'Supprimer' : 'إلغاء الحساب'}</span>
+                            <span>{lang === 'fr' ? 'Supprimer' : 'إلغاء الحساب'}</span>
                           </button>
                         )}
                       </div>
@@ -1496,10 +1479,10 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           <div className="p-4 border-b border-stone-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-stone-50/50">
             <div>
               <h2 className="text-sm font-bold text-stone-900">
-                {currentLang === 'fr' ? 'Facultés & Établissements Partenaires' : 'الكليات والمعاهد التابعة للمنصة'}
+                {lang === 'fr' ? 'Facultés & Établissements Partenaires' : 'الكليات والمعاهد التابعة للمنصة'}
               </h2>
               <p className="text-xs text-stone-500">
-                {currentLang === 'fr'
+                {lang === 'fr'
                   ? 'Structurez les départements universitaires pour classer les polycopiés.'
                   : 'إضافة وتنظيم الكليات والشعب الجامعية لتوزيع الكتب الأكاديمية بدقة.'}
               </p>
@@ -1510,7 +1493,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               className="flex items-center gap-1.5 px-3.5 py-1.5 bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>{currentLang === 'fr' ? 'Ajouter une Faculté' : 'إضافة كلية / معهد'}</span>
+              <span>{lang === 'fr' ? 'Ajouter une Faculté' : 'إضافة كلية / معهد'}</span>
             </button>
           </div>
 
@@ -1523,7 +1506,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                       {fac.code}
                     </span>
                     <span className="text-xs text-stone-500 font-medium">
-                      {fac.bookCount} {currentLang === 'fr' ? 'cours' : 'مقررات'}
+                      {fac.bookCount} {lang === 'fr' ? 'cours' : 'مقررات'}
                     </span>
                   </div>
                   <h3 className="font-bold text-stone-900 text-sm mb-1">{fac.nameFr}</h3>
@@ -1538,7 +1521,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           <div className="p-4 border-t border-stone-200 bg-stone-50/30">
             <h3 className="text-xs font-bold uppercase tracking-wider text-stone-700 mb-3 flex items-center gap-1.5">
               <GraduationCap className="w-4 h-4 text-amber-600" />
-              <span>{currentLang === 'fr' ? 'Base de Données Complète des Universités Marocaines' : 'قاعدة البيانات الرسمية للجامعات المغربية المعتمدة'}</span>
+              <span>{lang === 'fr' ? 'Base de Données Complète des Universités Marocaines' : 'قاعدة البيانات الرسمية للجامعات المغربية المعتمدة'}</span>
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
               {UNIVERSITIES_DATABASE.map((univ) => (
@@ -1561,10 +1544,10 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
                 <BookOpen className="w-4 h-4 text-emerald-600" />
-                <span>{currentLang === 'fr' ? 'Toutes les Filières & Spécialités Académiques' : 'جميع الشعب والتخصصات المفتوحة للمؤلفين والطلبة'}</span>
+                <span>{lang === 'fr' ? 'Toutes les Filières & Spécialités Académiques' : 'جميع الشعب والتخصصات المفتوحة للمؤلفين والطلبة'}</span>
               </h3>
               <span className="text-[11px] font-mono font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                {specialties.length} {currentLang === 'fr' ? 'filières' : 'شعبة وتخصص'}
+                {specialties.length} {lang === 'fr' ? 'filières' : 'شعبة وتخصص'}
               </span>
             </div>
             <div className="flex flex-wrap gap-2 mb-6">
@@ -1575,7 +1558,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   <span className="text-stone-400 text-[10px]">({sp.cycle})</span>
                   {sp.isCustom && (
                     <span className="text-[9px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded border border-emerald-300">
-                      ★ {currentLang === 'fr' ? 'Ajoutée' : 'مضافة'}
+                      ★ {lang === 'fr' ? 'Ajoutée' : 'مضافة'}
                     </span>
                   )}
                 </div>
@@ -1586,10 +1569,10 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
             <div className="flex items-center justify-between mb-3 pt-4 border-t border-stone-200">
               <h3 className="text-xs font-bold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
                 <Layers className="w-4 h-4 text-sky-600" />
-                <span>{currentLang === 'fr' ? 'Unités & Modules d\'Enseignement Enregistrés' : 'الوحدات والمواد الأكاديمية المسجلة بالمنصة'}</span>
+                <span>{lang === 'fr' ? 'Unités & Modules d\'Enseignement Enregistrés' : 'الوحدات والمواد الأكاديمية المسجلة بالمنصة'}</span>
               </h3>
               <span className="text-[11px] font-mono font-bold text-sky-800 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-200">
-                {modules.length} {currentLang === 'fr' ? 'modules' : 'وحدة تعليمية'}
+                {modules.length} {lang === 'fr' ? 'modules' : 'وحدة تعليمية'}
               </span>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -1599,7 +1582,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   <span className="text-stone-800 font-medium">{m.nameFr}</span>
                   {m.isCustom && (
                     <span className="text-[9px] font-bold text-sky-800 bg-sky-100 px-1.5 py-0.2 rounded border border-sky-300">
-                      ★ {currentLang === 'fr' ? 'Ajouté' : 'مضاف'}
+                      ★ {lang === 'fr' ? 'Ajouté' : 'مضاف'}
                     </span>
                   )}
                 </div>
@@ -1621,7 +1604,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                 </div>
                 <div>
                   <div className="text-[11px] font-mono text-amber-400 uppercase tracking-wider font-bold">
-                    {currentLang === 'fr' ? 'Compte Bancaire Régie Centrale d\'Encaissement' : 'الحساب البنكي التجاري المركزي لإدارة المنصة'}
+                    {lang === 'fr' ? 'Compte Bancaire Régie Centrale d\'Encaissement' : 'الحساب البنكي التجاري المركزي لإدارة المنصة'}
                   </div>
                   <h2 className="text-xl font-bold text-white">{adminCommercialAccount.holderName}</h2>
                   <div className="text-xs text-stone-400">{adminCommercialAccount.bankName} · {adminCommercialAccount.agencyCity}</div>
@@ -1630,7 +1613,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div className="p-3 bg-stone-800/90 rounded-xl border border-stone-700 font-mono">
                 <div className="text-[10px] text-stone-400 uppercase tracking-wider">
-                  {currentLang === 'fr' ? 'RIB Bancaire d\'Encaissement (24 Chiffres)' : 'رقم الحساب التجاري للتحصيل (RIB)'}
+                  {lang === 'fr' ? 'RIB Bancaire d\'Encaissement (24 Chiffres)' : 'رقم الحساب التجاري للتحصيل (RIB)'}
                 </div>
                 <div className="text-xs sm:text-sm font-bold text-amber-300">{adminCommercialAccount.bankRib}</div>
               </div>
@@ -1640,7 +1623,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
             <div className="pt-6 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
               <div className="p-3.5 bg-stone-800/70 rounded-xl border border-stone-700/80">
                 <div className="text-stone-400 text-[11px] mb-1">
-                  {currentLang === 'fr' ? 'Total Encaissé Brut' : 'إجمالي المداخيل المحصلة'}
+                  {lang === 'fr' ? 'Total Encaissé Brut' : 'إجمالي المداخيل المحصلة'}
                 </div>
                 <div className="text-xl font-black text-white font-mono tabular-nums">
                   {adminCommercialAccount.totalCollectedGrossMAD.toLocaleString()} DH
@@ -1650,7 +1633,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div className="p-3.5 bg-stone-800/70 rounded-xl border border-stone-700/80">
                 <div className="text-stone-400 text-[11px] mb-1">
-                  {currentLang === 'fr' ? 'Part Nette Plateforme (20%)' : 'عمولة المنصة الصافية (20%)'}
+                  {lang === 'fr' ? 'Part Nette Plateforme (20%)' : 'عمولة المنصة الصافية (20%)'}
                 </div>
                 <div className="text-xl font-black text-amber-300 font-mono tabular-nums">
                   {adminCommercialAccount.platformNetEarningsMAD.toLocaleString()} DH
@@ -1660,7 +1643,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div className="p-3.5 bg-stone-800/70 rounded-xl border border-stone-700/80">
                 <div className="text-stone-400 text-[11px] mb-1">
-                  {currentLang === 'fr' ? 'Part Droits d\'Auteurs (80%)' : 'مستحقات الأساتذة (80%)'}
+                  {lang === 'fr' ? 'Part Droits d\'Auteurs (80%)' : 'مستحقات الأساتذة (80%)'}
                 </div>
                 <div className="text-xl font-black text-white font-mono tabular-nums">
                   {adminCommercialAccount.professorsTotalEarnedMAD.toLocaleString()} DH
@@ -1670,7 +1653,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div className="p-3.5 bg-stone-800/70 rounded-xl border border-stone-700/80">
                 <div className="text-stone-400 text-[11px] mb-1">
-                  {currentLang === 'fr' ? 'Déjà Transféré aux Profs' : 'المحول فعلياً للأساتذة'}
+                  {lang === 'fr' ? 'Déjà Transféré aux Profs' : 'المحول فعلياً للأساتذة'}
                 </div>
                 <div className="text-xl font-black text-emerald-400 font-mono tabular-nums">
                   {adminCommercialAccount.professorsTotalPaidMAD.toLocaleString()} DH
@@ -1686,10 +1669,10 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               <div>
                 <h2 className="text-sm font-bold text-stone-900 flex items-center gap-1.5">
                   <Receipt className="w-4 h-4 text-emerald-600" />
-                  <span>{currentLang === 'fr' ? 'Journal des Règlements & Droits Académiques' : 'سجل التحصيل المالي المباشر لاشتراكات الطلبة'}</span>
+                  <span>{lang === 'fr' ? 'Journal des Règlements & Droits Académiques' : 'سجل التحصيل المالي المباشر لاشتراكات الطلبة'}</span>
                 </h2>
                 <p className="text-xs text-stone-500">
-                  {currentLang === 'fr'
+                  {lang === 'fr'
                     ? 'Chaque règlement effectué par un étudiant valide sa licence nominative avec délivrance automatique de la clé DRM.'
                     : 'جميع المبالغ المحصلة من اقتناء المقررات يتم إيداعها مباشرة في الحساب البنكي المعتمد للإدارة.'}
                 </p>
@@ -1704,13 +1687,13 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               <table className="w-full text-left text-xs">
                 <thead className="bg-stone-100/70 border-b border-stone-200 text-stone-600 font-semibold uppercase tracking-wider text-[11px]">
                   <tr>
-                    <th className="py-3 px-4">{currentLang === 'fr' ? 'Réf. Commande' : 'رقم الطلب'}</th>
-                    <th className="py-3 px-4">{currentLang === 'fr' ? 'Livre / Manuel' : 'المقرر'}</th>
-                    <th className="py-3 px-4">{currentLang === 'fr' ? 'Étudiant Payeur' : 'الطالب'}</th>
-                    <th className="py-3 px-4">{currentLang === 'fr' ? 'Mode Paiement' : 'وسيلة الأداء'}</th>
-                    <th className="py-3 px-4 text-right">{currentLang === 'fr' ? 'Montant Encaissé' : 'المبلغ المحصل'}</th>
-                    <th className="py-3 px-4">{currentLang === 'fr' ? 'Licence DRM Générée' : 'كود الترخيص الصادر'}</th>
-                    <th className="py-3 px-4 text-center">{currentLang === 'fr' ? 'État Encaissement' : 'حالة التحصيل'}</th>
+                    <th className="py-3 px-4">{lang === 'fr' ? 'Réf. Commande' : 'رقم الطلب'}</th>
+                    <th className="py-3 px-4">{lang === 'fr' ? 'Livre / Manuel' : 'المقرر'}</th>
+                    <th className="py-3 px-4">{lang === 'fr' ? 'Étudiant Payeur' : 'الطالب'}</th>
+                    <th className="py-3 px-4">{lang === 'fr' ? 'Mode Paiement' : 'وسيلة الأداء'}</th>
+                    <th className="py-3 px-4 text-right">{lang === 'fr' ? 'Montant Encaissé' : 'المبلغ المحصل'}</th>
+                    <th className="py-3 px-4">{lang === 'fr' ? 'Licence DRM Générée' : 'كود الترخيص الصادر'}</th>
+                    <th className="py-3 px-4 text-center">{lang === 'fr' ? 'État Encaissement' : 'حالة التحصيل'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
@@ -1772,10 +1755,10 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
         <div className="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-xs">
           <div className="p-4 border-b border-stone-200 bg-stone-50/50">
             <h2 className="text-sm font-bold text-stone-900">
-              {currentLang === 'fr' ? 'Historique des Virements Bancaires aux Enseignants' : 'سجل التحويلات البنكية المنفذة لحسابات الأساتذة'}
+              {lang === 'fr' ? 'Historique des Virements Bancaires aux Enseignants' : 'سجل التحويلات البنكية المنفذة لحسابات الأساتذة'}
             </h2>
             <p className="text-xs text-stone-500">
-              {currentLang === 'fr'
+              {lang === 'fr'
                 ? 'Reçus officiels de reversement des redevances avec numéros de référence bancaire.'
                 : 'إثباتات التحويل البنكي المعتمدة مع مراجع الإرسال لضمان حقوق المؤلفين.'}
             </p>
@@ -1785,12 +1768,12 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
             <table className="w-full text-left text-xs">
               <thead className="bg-stone-100/70 border-b border-stone-200 text-stone-600 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
-                  <th className="py-3 px-4">{currentLang === 'fr' ? 'Référence Virement' : 'مرجع التحويل'}</th>
-                  <th className="py-3 px-4">{currentLang === 'fr' ? 'Bénéficiaire (Enseignant)' : 'الأستاذ المستفيد'}</th>
-                  <th className="py-3 px-4">{currentLang === 'fr' ? 'RIB Bancaire de Destination' : 'الحساب البنكي (RIB)'}</th>
-                  <th className="py-3 px-4">{currentLang === 'fr' ? 'Date d\'Exécution' : 'تاريخ التحويل'}</th>
-                  <th className="py-3 px-4 text-right">{currentLang === 'fr' ? 'Montant Virement' : 'المبلغ المحول'}</th>
-                  <th className="py-3 px-4 text-center">{currentLang === 'fr' ? 'Statut' : 'الحالة'}</th>
+                  <th className="py-3 px-4">{lang === 'fr' ? 'Référence Virement' : 'مرجع التحويل'}</th>
+                  <th className="py-3 px-4">{lang === 'fr' ? 'Bénéficiaire (Enseignant)' : 'الأستاذ المستفيد'}</th>
+                  <th className="py-3 px-4">{lang === 'fr' ? 'RIB Bancaire de Destination' : 'الحساب البنكي (RIB)'}</th>
+                  <th className="py-3 px-4">{lang === 'fr' ? 'Date d\'Exécution' : 'تاريخ التحويل'}</th>
+                  <th className="py-3 px-4 text-right">{lang === 'fr' ? 'Montant Virement' : 'المبلغ المحول'}</th>
+                  <th className="py-3 px-4 text-center">{lang === 'fr' ? 'Statut' : 'الحالة'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -1833,7 +1816,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
             <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-2xl text-emerald-950 flex items-start gap-3 shadow-xs">
               <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
               <div>
-                <div className="font-bold text-sm">{currentLang === 'fr' ? 'Scan d\'Intégrité Réussi' : 'نجاح فحص سلامة البيانات'}</div>
+                <div className="font-bold text-sm">{lang === 'fr' ? 'Scan d\'Intégrité Réussi' : 'نجاح فحص سلامة البيانات'}</div>
                 <div className="text-xs text-emerald-800 mt-0.5">{integrityScanResult}</div>
                 <div className="text-[11px] font-mono text-emerald-700 mt-1">
                   Checksum : {securityConfig.databaseChecksum} | Horodatage : {securityConfig.lastIntegrityCheck}
@@ -1846,7 +1829,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
             <div className="p-4 bg-sky-50 border border-sky-300 rounded-2xl text-sky-950 flex items-start gap-3 shadow-xs">
               <Download className="w-5 h-5 text-sky-600 shrink-0 mt-0.5" />
               <div>
-                <div className="font-bold text-sm">{currentLang === 'fr' ? 'Sauvegarde Exportée' : 'تم تصدير النسخة الاحتياطية'}</div>
+                <div className="font-bold text-sm">{lang === 'fr' ? 'Sauvegarde Exportée' : 'تم تصدير النسخة الاحتياطية'}</div>
                 <div className="text-xs text-sky-800 mt-0.5">{backupExportSuccess}</div>
               </div>
             </div>
@@ -1856,7 +1839,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-4 bg-white border border-stone-200 rounded-2xl shadow-xs">
               <div className="flex items-center justify-between text-xs text-stone-500 mb-2">
-                <span className="font-bold">{currentLang === 'fr' ? 'Chiffrement des Données' : 'تشفير البيانات'}</span>
+                <span className="font-bold">{lang === 'fr' ? 'Chiffrement des Données' : 'تشفير البيانات'}</span>
                 <span className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg">
                   <Lock className="w-4 h-4" />
                 </span>
@@ -1866,13 +1849,13 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                 <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded">Actif</span>
               </div>
               <div className="text-[11px] text-stone-500 mt-1">
-                {currentLang === 'fr' ? 'Au repos & en transit (TLS 1.3)' : 'مشفر أثناء الحفظ والنقل (TLS 1.3)'}
+                {lang === 'fr' ? 'Au repos & en transit (TLS 1.3)' : 'مشفر أثناء الحفظ والنقل (TLS 1.3)'}
               </div>
             </div>
 
             <div className="p-4 bg-white border border-stone-200 rounded-2xl shadow-xs">
               <div className="flex items-center justify-between text-xs text-stone-500 mb-2">
-                <span className="font-bold">{currentLang === 'fr' ? 'Sécurité Paiements CMI' : 'أمان أداءات CMI'}</span>
+                <span className="font-bold">{lang === 'fr' ? 'Sécurité Paiements CMI' : 'أمان أداءات CMI'}</span>
                 <span className="p-1.5 bg-amber-100 text-amber-700 rounded-lg">
                   <CreditCard className="w-4 h-4" />
                 </span>
@@ -1881,13 +1864,13 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                 <span>PCI-DSS Grade {securityConfig.cmiPciDssGrade}</span>
               </div>
               <div className="text-[11px] text-stone-500 mt-1">
-                {currentLang === 'fr' ? 'Tokenisation & 0 stockage carte' : 'تأمين بنكي دون تخزين البطاقات'}
+                {lang === 'fr' ? 'Tokenisation & 0 stockage carte' : 'تأمين بنكي دون تخزين البطاقات'}
               </div>
             </div>
 
             <div className="p-4 bg-white border border-stone-200 rounded-2xl shadow-xs">
               <div className="flex items-center justify-between text-xs text-stone-500 mb-2">
-                <span className="font-bold">{currentLang === 'fr' ? 'Conformité CNDP' : 'مطابقة CNDP 09-08'}</span>
+                <span className="font-bold">{lang === 'fr' ? 'Conformité CNDP' : 'مطابقة CNDP 09-08'}</span>
                 <span className="p-1.5 bg-indigo-100 text-indigo-700 rounded-lg">
                   <FileCheck className="w-4 h-4" />
                 </span>
@@ -1902,7 +1885,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
             <div className="p-4 bg-white border border-stone-200 rounded-2xl shadow-xs">
               <div className="flex items-center justify-between text-xs text-stone-500 mb-2">
-                <span className="font-bold">{currentLang === 'fr' ? 'Contrôle d\'Intégrité BDD' : 'سلامة وتطابق البيانات'}</span>
+                <span className="font-bold">{lang === 'fr' ? 'Contrôle d\'Intégrité BDD' : 'سلامة وتطابق البيانات'}</span>
                 <span className="p-1.5 bg-sky-100 text-sky-700 rounded-lg">
                   <Database className="w-4 h-4" />
                 </span>
@@ -1912,7 +1895,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               </div>
               <div className="text-[11px] text-emerald-600 font-bold mt-1 flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" />
-                <span>{currentLang === 'fr' ? '100% Intègre (0 Altération)' : '100% سليم ومطابق'}</span>
+                <span>{lang === 'fr' ? '100% Intègre (0 Altération)' : '100% سليم ومطابق'}</span>
               </div>
             </div>
           </div>
@@ -1923,13 +1906,13 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-emerald-400" />
                 <h3 className="font-extrabold text-sm text-white">
-                  {currentLang === 'fr'
+                  {lang === 'fr'
                     ? 'Console de Surveillance & Protection Active'
                     : 'لوحة مراقبة الأمان وحماية قواعد البيانات'}
                 </h3>
               </div>
               <p className="text-xs text-stone-400 mt-0.5">
-                {currentLang === 'fr'
+                {lang === 'fr'
                   ? 'Exécutez des scans cryptographiques, auditez les encaissements et téléchargez les sauvegardes de secours.'
                   : 'إجراء مسح أمني مشفر، مراقبة التواقيع المالية، وتصدير النسخ الاحتياطية المعتمدة.'}
               </p>
@@ -1944,8 +1927,8 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                 <RefreshCw className={`w-3.5 h-3.5 ${isScanningIntegrity ? 'animate-spin' : ''}`} />
                 <span>
                   {isScanningIntegrity
-                    ? (currentLang === 'fr' ? 'Scan en cours...' : 'جارِ الفحص...')
-                    : (currentLang === 'fr' ? 'Vérifier l\'Intégrité BDD' : 'فحص سلامة البيانات')}
+                    ? (lang === 'fr' ? 'Scan en cours...' : 'جارِ الفحص...')
+                    : (lang === 'fr' ? 'Vérifier l\'Intégrité BDD' : 'فحص سلامة البيانات')}
                 </span>
               </button>
 
@@ -1954,7 +1937,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                 className="px-3.5 py-2 bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700 font-semibold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5 text-amber-400" />
-                <span>{currentLang === 'fr' ? 'Exporter Sauvegarde Chiffrée' : 'تصدير نسخة احتياطية'}</span>
+                <span>{lang === 'fr' ? 'Exporter Sauvegarde Chiffrée' : 'تصدير نسخة احتياطية'}</span>
               </button>
             </div>
           </div>
@@ -1970,10 +1953,10 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   </div>
                   <div>
                     <h4 className="font-bold text-sm text-stone-900">
-                      {currentLang === 'fr' ? '1. Sécurité des Paiements CMI' : '1. حماية وتأمين الأداءات CMI'}
+                      {lang === 'fr' ? '1. Sécurité des Paiements CMI' : '1. حماية وتأمين الأداءات CMI'}
                     </h4>
                     <span className="text-[10px] text-amber-700 font-semibold">
-                      {currentLang === 'fr' ? 'Encaissements Certifiés' : 'تحصيل تجاري مؤمن'}
+                      {lang === 'fr' ? 'Encaissements Certifiés' : 'تحصيل تجاري مؤمن'}
                     </span>
                   </div>
                 </div>
@@ -1981,10 +1964,10 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                 <div className="space-y-2.5 text-xs text-stone-600 mb-4">
                   <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
                     <div className="font-bold text-stone-900 mb-0.5">
-                      {currentLang === 'fr' ? 'Signature HMAC-SHA256' : 'التوقيع المشفر HMAC-SHA256'}
+                      {lang === 'fr' ? 'Signature HMAC-SHA256' : 'التوقيع المشفر HMAC-SHA256'}
                     </div>
                     <div className="text-[11px] text-stone-500">
-                      {currentLang === 'fr'
+                      {lang === 'fr'
                         ? 'Chaque paiement reçu (CMI ou Virement) génère un hash cryptographique non falsifiable liant l\'étudiant et le livre.'
                         : 'كل عملية دفع ترفق ببصمة مشفرة تضمن صحة المعاملة ومنع التلاعب بالأداءات.'}
                     </div>
@@ -1992,7 +1975,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
                   <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
                     <div className="font-bold text-stone-900 mb-0.5">
-                      {currentLang === 'fr' ? 'Compte de Destination Sécurisé' : 'الحساب البنكي المعتمد للإدارة'}
+                      {lang === 'fr' ? 'Compte de Destination Sécurisé' : 'الحساب البنكي المعتمد للإدارة'}
                     </div>
                     <div className="text-[11px] text-stone-500 font-mono">
                       RIB : {adminCommercialAccount.bankRib}
@@ -2001,10 +1984,10 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
                   <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
                     <div className="font-bold text-stone-900 mb-0.5">
-                      {currentLang === 'fr' ? 'Zéro Donnée Bancaire Stockée' : 'عدم تخزين بيانات البطاقات'}
+                      {lang === 'fr' ? 'Zéro Donnée Bancaire Stockée' : 'عدم تخزين بيانات البطاقات'}
                     </div>
                     <div className="text-[11px] text-stone-500">
-                      {currentLang === 'fr'
+                      {lang === 'fr'
                         ? 'Les numéros de carte bancaire ne transitent jamais sur nos serveurs (Tokenisation PCI-DSS).'
                         : 'تمر المعاملات عبر بوابة البنك مباشرة ولا يتم حفظ أرقام البطاقات.'}
                     </div>
@@ -2014,7 +1997,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div className="pt-3 border-t border-stone-200 text-[11px] text-emerald-700 font-bold flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>{paymentOrders?.length || 0} {currentLang === 'fr' ? 'commandes réconciliées avec succès' : 'عمليات أداء مطابقة بالكامل'}</span>
+                <span>{paymentOrders?.length || 0} {lang === 'fr' ? 'commandes réconciliées avec succès' : 'عمليات أداء مطابقة بالكامل'}</span>
               </div>
             </div>
 
@@ -2027,36 +2010,36 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   </div>
                   <div>
                     <h4 className="font-bold text-sm text-stone-900">
-                      {currentLang === 'fr' ? '2. Intégrité des Bases de Données' : '2. حماية قواعد البيانات الأكاديمية'}
+                      {lang === 'fr' ? '2. Intégrité des Bases de Données' : '2. حماية قواعد البيانات الأكاديمية'}
                     </h4>
                     <span className="text-[10px] text-sky-700 font-semibold">
-                      {currentLang === 'fr' ? 'Architecture Relationnelle' : 'بنية معطيات محصنة'}
+                      {lang === 'fr' ? 'Architecture Relationnelle' : 'بنية معطيات محصنة'}
                     </span>
                   </div>
                 </div>
 
                 <div className="space-y-2.5 text-xs text-stone-600 mb-4">
                   <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200 flex items-center justify-between">
-                    <span>{currentLang === 'fr' ? 'Universités Enregistrées' : 'الجامعات المسجلة'}</span>
+                    <span>{lang === 'fr' ? 'Universités Enregistrées' : 'الجامعات المسجلة'}</span>
                     <span className="font-bold font-mono text-stone-900">{UNIVERSITIES_DATABASE.length} universités</span>
                   </div>
 
                   <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200 flex items-center justify-between">
-                    <span>{currentLang === 'fr' ? 'Comptes Enseignants Vérifiés' : 'حسابات الأساتذة الموثقة'}</span>
+                    <span>{lang === 'fr' ? 'Comptes Enseignants Vérifiés' : 'حسابات الأساتذة الموثقة'}</span>
                     <span className="font-bold font-mono text-stone-900">{professors?.length || 0} professeurs</span>
                   </div>
 
                   <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200 flex items-center justify-between">
-                    <span>{currentLang === 'fr' ? 'Licences DRM Actives' : 'رخص الدخول الصادرة'}</span>
+                    <span>{lang === 'fr' ? 'Licences DRM Actives' : 'رخص الدخول الصادرة'}</span>
                     <span className="font-bold font-mono text-stone-900">{drmLicenses?.length || 0} licences</span>
                   </div>
 
                   <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
                     <div className="font-bold text-stone-900 mb-0.5">
-                      {currentLang === 'fr' ? 'Cloisonnement Étudiant / Enseignant / Admin' : 'عزل الصلاحيات وحماية الخصوصية'}
+                      {lang === 'fr' ? 'Cloisonnement Étudiant / Enseignant / Admin' : 'عزل الصلاحيات وحماية الخصوصية'}
                     </div>
                     <div className="text-[11px] text-stone-500">
-                      {currentLang === 'fr'
+                      {lang === 'fr'
                         ? 'Accès strictement compartimenté selon le rôle RBAC pour interdire toute fuite de données privées.'
                         : 'عزل تام لصلاحيات الطلبة عن فضاء الأساتذة عن لوحة الإدارة.'}
                     </div>
@@ -2066,7 +2049,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div className="pt-3 border-t border-stone-200 text-[11px] text-sky-700 font-bold flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>{currentLang === 'fr' ? 'Tables relationnelles synchronisées' : 'تطابق كامل بين الجداول'}</span>
+                <span>{lang === 'fr' ? 'Tables relationnelles synchronisées' : 'تطابق كامل بين الجداول'}</span>
               </div>
             </div>
 
@@ -2079,10 +2062,10 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   </div>
                   <div>
                     <h4 className="font-bold text-sm text-stone-900">
-                      {currentLang === 'fr' ? '3. Conformité CNDP Loi 09-08' : '3. حماية المعطيات الشخصية CNDP'}
+                      {lang === 'fr' ? '3. Conformité CNDP Loi 09-08' : '3. حماية المعطيات الشخصية CNDP'}
                     </h4>
                     <span className="text-[10px] text-indigo-700 font-semibold">
-                      {currentLang === 'fr' ? 'Législation Marocaine' : 'القانون المغربي 09-08'}
+                      {lang === 'fr' ? 'Législation Marocaine' : 'القانون المغربي 09-08'}
                     </span>
                   </div>
                 </div>
@@ -2090,10 +2073,10 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                 <div className="space-y-2.5 text-xs text-stone-600 mb-4">
                   <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
                     <div className="font-bold text-stone-900 mb-0.5">
-                      {currentLang === 'fr' ? 'Anonymisation des Identifiants' : 'حجب المعرفات الشخصية'}
+                      {lang === 'fr' ? 'Anonymisation des Identifiants' : 'حجب المعرفات الشخصية'}
                     </div>
                     <div className="text-[11px] text-stone-500">
-                      {currentLang === 'fr'
+                      {lang === 'fr'
                         ? 'Les matricules Apogée et e-mails personnels sont masqués dans les écrans partagés pour éviter le pistage.'
                         : 'حجب البريد والرقم الجامعي في واجهات العرض العامة للحفاظ على الخصوصية.'}
                     </div>
@@ -2101,10 +2084,10 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
                   <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
                     <div className="font-bold text-stone-900 mb-0.5">
-                      {currentLang === 'fr' ? 'Accès Enseignant Gated @*.ac.ma' : 'دخول الأساتذة بالبريد الجامعي فقط'}
+                      {lang === 'fr' ? 'Accès Enseignant Gated @*.ac.ma' : 'دخول الأساتذة بالبريد الجامعي فقط'}
                     </div>
                     <div className="text-[11px] text-stone-500">
-                      {currentLang === 'fr'
+                      {lang === 'fr'
                         ? 'Les informations de redevances et RIB bancaires des enseignants ne sont jamais exposées publiquement.'
                         : 'بيانات الأرباح والحسابات البنكية للأستاذ محمية بجدار تحقق إلكتروني.'}
                     </div>
@@ -2112,10 +2095,10 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
                   <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
                     <div className="font-bold text-stone-900 mb-0.5">
-                      {currentLang === 'fr' ? 'Journal d\'Audit Immuable' : 'سجل العمليات غير القابل للتعديل'}
+                      {lang === 'fr' ? 'Journal d\'Audit Immuable' : 'سجل العمليات غير القابل للتعديل'}
                     </div>
                     <div className="text-[11px] text-stone-500">
-                      {currentLang === 'fr'
+                      {lang === 'fr'
                         ? 'Toute action administrative sensible est horodatée et consignée avec signature numérique.'
                         : 'تسجيل كل عملية إدارية بتوقيت زمني وبصمة رقمية لضمان المساءلة.'}
                     </div>
@@ -2125,7 +2108,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div className="pt-3 border-t border-stone-200 text-[11px] text-indigo-700 font-bold flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>{currentLang === 'fr' ? 'Délégué à la Protection (DPO) Assigné' : 'تعيين مسؤول حماية البيانات'}</span>
+                <span>{lang === 'fr' ? 'Délégué à la Protection (DPO) Assigné' : 'تعيين مسؤول حماية البيانات'}</span>
               </div>
             </div>
           </div>
@@ -2136,14 +2119,14 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-bold text-stone-900">
-                    {currentLang === 'fr' ? 'Registre d\'Audit de Sécurité & Événements' : 'سجل الأمان والعمليات المشفر للوحة التحكم'}
+                    {lang === 'fr' ? 'Registre d\'Audit de Sécurité & Événements' : 'سجل الأمان والعمليات المشفر للوحة التحكم'}
                   </h3>
                   <span className="text-[10px] font-mono font-bold bg-stone-200 text-stone-800 px-2 py-0.5 rounded">
                     {auditLogs.length} logs
                   </span>
                 </div>
                 <p className="text-xs text-stone-500 mt-0.5">
-                  {currentLang === 'fr'
+                  {lang === 'fr'
                     ? 'Journal horodaté traçant les paiements, scans d\'intégrité, émissions de licences et accès Super-Admin.'
                     : 'سجل زمني دقيق لكل عمليات الأداء وفحص قواعد البيانات وتراخيص الدخول.'}
                 </p>
@@ -2156,11 +2139,11 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   onChange={(e) => setAuditFilterCategory(e.target.value)}
                   className="px-3 py-1.5 bg-white border border-stone-300 rounded-xl text-xs font-semibold text-stone-700 cursor-pointer"
                 >
-                  <option value="all">{currentLang === 'fr' ? 'Toutes les catégories' : 'جميع الفئات'}</option>
-                  <option value="PAYMENT">{currentLang === 'fr' ? 'Paiements & CMI' : 'الأداءات'}</option>
-                  <option value="DATABASE">{currentLang === 'fr' ? 'Base de données' : 'قواعد البيانات'}</option>
-                  <option value="ACCESS">{currentLang === 'fr' ? 'Accès & Sessions' : 'جلسات الدخول'}</option>
-                  <option value="PRIVACY">{currentLang === 'fr' ? 'Confidentialité CNDP' : 'الخصوصية'}</option>
+                  <option value="all">{lang === 'fr' ? 'Toutes les catégories' : 'جميع الفئات'}</option>
+                  <option value="PAYMENT">{lang === 'fr' ? 'Paiements & CMI' : 'الأداءات'}</option>
+                  <option value="DATABASE">{lang === 'fr' ? 'Base de données' : 'قواعد البيانات'}</option>
+                  <option value="ACCESS">{lang === 'fr' ? 'Accès & Sessions' : 'جلسات الدخول'}</option>
+                  <option value="PRIVACY">{lang === 'fr' ? 'Confidentialité CNDP' : 'الخصوصية'}</option>
                 </select>
               </div>
             </div>
@@ -2170,12 +2153,12 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               <table className="w-full text-left text-xs">
                 <thead className="bg-stone-100/70 border-b border-stone-200 text-stone-600 font-semibold">
                   <tr>
-                    <th className="py-3 px-4">{currentLang === 'fr' ? 'Horodatage' : 'التاريخ والوقت'}</th>
-                    <th className="py-3 px-4">{currentLang === 'fr' ? 'Catégorie' : 'الفئة'}</th>
-                    <th className="py-3 px-4">{currentLang === 'fr' ? 'Action' : 'العملية'}</th>
-                    <th className="py-3 px-4">{currentLang === 'fr' ? 'Opérateur' : 'المشغل / المصدر'}</th>
-                    <th className="py-3 px-4">{currentLang === 'fr' ? 'Détails de Sécurité' : 'التفاصيل'}</th>
-                    <th className="py-3 px-4">{currentLang === 'fr' ? 'Signature' : 'التوقيع الرقمي'}</th>
+                    <th className="py-3 px-4">{lang === 'fr' ? 'Horodatage' : 'التاريخ والوقت'}</th>
+                    <th className="py-3 px-4">{lang === 'fr' ? 'Catégorie' : 'الفئة'}</th>
+                    <th className="py-3 px-4">{lang === 'fr' ? 'Action' : 'العملية'}</th>
+                    <th className="py-3 px-4">{lang === 'fr' ? 'Opérateur' : 'المشغل / المصدر'}</th>
+                    <th className="py-3 px-4">{lang === 'fr' ? 'Détails de Sécurité' : 'التفاصيل'}</th>
+                    <th className="py-3 px-4">{lang === 'fr' ? 'Signature' : 'التوقيع الرقمي'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-200">
@@ -2231,7 +2214,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           <div className="bg-white rounded-2xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-stone-200">
             <div className="flex items-center justify-between pb-4 border-b border-stone-200 mb-6">
               <h2 className="text-lg font-bold text-stone-900">
-                {currentLang === 'fr' ? 'Ajouter un Nouveau Polycopié / Manuel' : 'إضافة كتاب أو مطبوع جامعي جديد'}
+                {lang === 'fr' ? 'Ajouter un Nouveau Polycopié / Manuel' : 'إضافة كتاب أو مطبوع جامعي جديد'}
               </h2>
               <button
                 onClick={() => setIsAddBookOpen(false)}
@@ -2277,14 +2260,14 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                     <span className="text-emerald-700 font-mono">✓ {newBookFileName} (Fichier prêt pour indexation)</span>
                   ) : (
                     <span>
-                      {currentLang === 'fr'
+                      {lang === 'fr'
                         ? 'Déposer le polycopié PDF ou cliquer pour importer'
                         : 'إسقاط ملف المقرر بصيغة PDF أو النقر لاختيار الملف'}
                     </span>
                   )}
                 </div>
                 <p className="text-[10px] text-stone-500">
-                  {currentLang === 'fr'
+                  {lang === 'fr'
                     ? 'Le document sera automatiquement converti en format sécurisé DRM in-app'
                     : 'تتم معالجة الملف آلياً وإدراجه في المعرض العام مع حظر الاستخراج'}
                 </p>
@@ -2292,7 +2275,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div>
                 <label className="block font-semibold text-stone-700 mb-1">
-                  {currentLang === 'fr' ? 'Titre du Cours (Français)' : 'عنوان الكتاب أو المقرر بالفرنسية'}
+                  {lang === 'fr' ? 'Titre du Cours (Français)' : 'عنوان الكتاب أو المقرر بالفرنسية'}
                 </label>
                 <input
                   type="text"
@@ -2306,7 +2289,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div>
                 <label className="block font-semibold text-stone-700 mb-1">
-                  {currentLang === 'fr' ? 'Titre du Cours (Arabe)' : 'عنوان الكتاب بالعربية'}
+                  {lang === 'fr' ? 'Titre du Cours (Arabe)' : 'عنوان الكتاب بالعربية'}
                 </label>
                 <input
                   type="text"
@@ -2321,7 +2304,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-stone-700 mb-1">
-                    {currentLang === 'fr' ? 'Université de Rattachement (12 Universités)' : 'الجامعة (من قاعدة الـ 12 جامعة)'}
+                    {lang === 'fr' ? 'Université de Rattachement (12 Universités)' : 'الجامعة (من قاعدة الـ 12 جامعة)'}
                   </label>
                   <select
                     value={newBookUnivCode}
@@ -2344,7 +2327,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
                 <div>
                   <label className="block font-semibold text-stone-700 mb-1">
-                    {currentLang === 'fr' ? 'Établissement / Faculté Affiliée' : 'المؤسسة أو الكلية التابعة لها'}
+                    {lang === 'fr' ? 'Établissement / Faculté Affiliée' : 'المؤسسة أو الكلية التابعة لها'}
                   </label>
                   <select
                     value={newBookAffiliatedFaculty}
@@ -2363,7 +2346,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-stone-700 mb-1">
-                    {currentLang === 'fr' ? 'Faculté de Rattachement' : 'الكلية'}
+                    {lang === 'fr' ? 'Faculté de Rattachement' : 'الكلية'}
                   </label>
                   <select
                     value={newBookFaculty}
@@ -2379,7 +2362,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
                 <div>
                   <label className="block font-semibold text-stone-700 mb-1">
-                    {currentLang === 'fr' ? 'Semestre' : 'الفصل الدراسي'}
+                    {lang === 'fr' ? 'Semestre' : 'الفصل الدراسي'}
                   </label>
                   <select
                     value={newBookSemester}
@@ -2402,14 +2385,14 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-semibold text-stone-700">
-                      {currentLang === 'fr' ? 'Filière / Spécialité' : 'الشعبة والتخصص'}
+                      {lang === 'fr' ? 'Filière / Spécialité' : 'الشعبة والتخصص'}
                     </label>
                     <button
                       type="button"
                       onClick={() => setIsCustomNewBookSpecialty(!isCustomNewBookSpecialty)}
                       className="text-[10px] text-amber-800 font-bold hover:underline cursor-pointer"
                     >
-                      {isCustomNewBookSpecialty ? (currentLang === 'fr' ? 'Liste' : 'القائمة') : (currentLang === 'fr' ? '+ Nouvelle filière' : '+ تخصص جديد')}
+                      {isCustomNewBookSpecialty ? (lang === 'fr' ? 'Liste' : 'القائمة') : (lang === 'fr' ? '+ Nouvelle filière' : '+ تخصص جديد')}
                     </button>
                   </div>
                   {!isCustomNewBookSpecialty ? (
@@ -2418,7 +2401,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                       onChange={(e) => setNewBookSpecialty(e.target.value)}
                       className="w-full p-2 bg-white border border-stone-300 rounded-lg text-xs"
                     >
-                      <option value="">{currentLang === 'fr' ? '-- Choisir une filière --' : '-- اختر التخصص --'}</option>
+                      <option value="">{lang === 'fr' ? '-- Choisir une filière --' : '-- اختر التخصص --'}</option>
                       {specialties.map((sp) => (
                         <option key={sp.id} value={sp.nameFr}>
                           {sp.nameFr} ({sp.cycle}){sp.isCustom ? ' ★ [مخصص]' : ''}
@@ -2449,14 +2432,14 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-semibold text-stone-700">
-                      {currentLang === 'fr' ? 'Module / Unité d\'enseignement' : 'الوحدة أو المادة الدراسية'}
+                      {lang === 'fr' ? 'Module / Unité d\'enseignement' : 'الوحدة أو المادة الدراسية'}
                     </label>
                     <button
                       type="button"
                       onClick={() => setIsCustomNewBookModule(!isCustomNewBookModule)}
                       className="text-[10px] text-emerald-800 font-bold hover:underline cursor-pointer"
                     >
-                      {isCustomNewBookModule ? (currentLang === 'fr' ? 'Liste' : 'القائمة') : (currentLang === 'fr' ? '+ Nouveau module' : '+ وحدة جديدة')}
+                      {isCustomNewBookModule ? (lang === 'fr' ? 'Liste' : 'القائمة') : (lang === 'fr' ? '+ Nouveau module' : '+ وحدة جديدة')}
                     </button>
                   </div>
                   {!isCustomNewBookModule ? (
@@ -2465,7 +2448,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                       onChange={(e) => setNewBookModule(e.target.value)}
                       className="w-full p-2 bg-white border border-stone-300 rounded-lg text-xs"
                     >
-                      <option value="">{currentLang === 'fr' ? '-- Choisir un module --' : '-- اختر الوحدة --'}</option>
+                      <option value="">{lang === 'fr' ? '-- Choisir un module --' : '-- اختر الوحدة --'}</option>
                       {modules.map((m) => (
                         <option key={m.id} value={m.nameFr}>
                           {m.nameFr} ({m.semester || 'Tous'}){m.isCustom ? ' ★ [مخصص]' : ''}
@@ -2497,7 +2480,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-stone-700 mb-1">
-                    {currentLang === 'fr' ? 'Professeur / Enseignant' : 'الأستاذ المؤلف'}
+                    {lang === 'fr' ? 'Professeur / Enseignant' : 'الأستاذ المؤلف'}
                   </label>
                   <input
                     type="text"
@@ -2511,7 +2494,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
                 <div>
                   <label className="block font-semibold text-stone-700 mb-1">
-                    {currentLang === 'fr' ? 'Tarif Préférentiel Étudiant (MAD)' : 'التعريفة التفضيلية للطلبة (درهم)'}
+                    {lang === 'fr' ? 'Tarif Préférentiel Étudiant (MAD)' : 'التعريفة التفضيلية للطلبة (درهم)'}
                   </label>
                   <input
                     type="number"
@@ -2527,7 +2510,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div>
                 <label className="block font-semibold text-stone-700 mb-1">
-                  {currentLang === 'fr' ? 'Description & Objectifs du Cours' : 'وصف المقرر والأهداف الأكاديمية'}
+                  {lang === 'fr' ? 'Description & Objectifs du Cours' : 'وصف المقرر والأهداف الأكاديمية'}
                 </label>
                 <textarea
                   rows={3}
@@ -2542,7 +2525,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl space-y-2">
                 <label className="block font-semibold text-stone-700 flex items-center gap-1.5">
                   <ImageIcon className="w-4 h-4 text-emerald-600" />
-                  <span>{currentLang === 'fr' ? 'Image de Couverture du Livre *' : 'تحميل صورة غلاف الكتاب للمكتبة *'}</span>
+                  <span>{lang === 'fr' ? 'Image de Couverture du Livre *' : 'تحميل صورة غلاف الكتاب للمكتبة *'}</span>
                 </label>
                 <div className="flex items-center gap-3">
                   <div className="w-16 aspect-[3/4] bg-stone-200 rounded-lg overflow-hidden border border-stone-300 flex items-center justify-center shrink-0">
@@ -2555,7 +2538,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   <div className="flex-1 space-y-1">
                     <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-white font-bold text-xs rounded-lg transition-colors">
                       <Upload className="w-3.5 h-3.5" />
-                      <span>{currentLang === 'fr' ? 'Choisir l\'image de couverture' : 'اختيار صورة الغلاف من الجهاز'}</span>
+                      <span>{lang === 'fr' ? 'Choisir l\'image de couverture' : 'اختيار صورة الغلاف من الجهاز'}</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -2564,7 +2547,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                       />
                     </label>
                     <p className="text-[10px] text-stone-500">
-                      {currentLang === 'fr'
+                      {lang === 'fr'
                         ? 'Image affichée dans la bibliothèque et utilisée comme lien d\'accès et d\'acquisition au tarif préférentiel.'
                         : 'ستظهر صورة الغلاف هذه في المكتبة كواجهة أنيقة للاقتناء بالتعريفة التفضيلية للطلبة.'}
                     </p>
@@ -2578,7 +2561,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   onClick={() => setIsAddBookOpen(false)}
                   className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-lg transition-colors cursor-pointer"
                 >
-                  {currentLang === 'fr' ? 'Annuler' : 'إلغاء'}
+                  {lang === 'fr' ? 'Annuler' : 'إلغاء'}
                 </button>
                 <button
                   type="submit"
@@ -2588,10 +2571,10 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   {isSavingBook ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
-                      <span>{currentLang === 'fr' ? 'Indexation du PDF & Enregistrement...' : 'جاري تشفير وحفظ ملف المطبوع...'}</span>
+                      <span>{lang === 'fr' ? 'Indexation du PDF & Enregistrement...' : 'جاري تشفير وحفظ ملف المطبوع...'}</span>
                     </>
                   ) : (
-                    <span>{currentLang === 'fr' ? 'Enregistrer le livre' : 'حفظ ونشر المقرر'}</span>
+                    <span>{lang === 'fr' ? 'Enregistrer le livre' : 'حفظ ونشر المقرر'}</span>
                   )}
                 </button>
               </div>
@@ -2608,7 +2591,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               <div className="flex items-center gap-2">
                 <KeyRound className="w-5 h-5 text-amber-600" />
                 <h3 className="text-sm font-bold text-stone-900">
-                  {currentLang === 'fr' ? 'Modifier le Code Secret Administrateur' : 'تغيير الرقم السري لحساب الإدارة'}
+                  {lang === 'fr' ? 'Modifier le Code Secret Administrateur' : 'تغيير الرقم السري لحساب الإدارة'}
                 </h3>
               </div>
               <button
@@ -2620,7 +2603,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
             </div>
 
             <p className="text-xs text-stone-600 mb-4 leading-relaxed">
-              {currentLang === 'fr'
+              {lang === 'fr'
                 ? 'Ce code secret est strictement confidentiel et protège l\'accès Super-Admin de la plateforme. Ne le partagez avec aucun tiers.'
                 : 'هذا الرقم السري خاص حصرياً بالإدارة وغير قابل للنشر. يمكنك تغييره هنا في أي وقت لحماية المنصة.'}
             </p>
@@ -2642,7 +2625,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
             <form onSubmit={handleChangeAdminPinSubmit} className="space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-stone-700 mb-1">
-                  {currentLang === 'fr' ? 'Code Secret Actuel *' : 'الرقم السري الحالي للإدارة *'}
+                  {lang === 'fr' ? 'Code Secret Actuel *' : 'الرقم السري الحالي للإدارة *'}
                 </label>
                 <input
                   type="password"
@@ -2656,7 +2639,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div>
                 <label className="block text-xs font-semibold text-stone-700 mb-1">
-                  {currentLang === 'fr' ? 'Nouveau Code Secret (min 6 caractères) *' : 'الرقم السري الجديد (6 خانات على الأقل) *'}
+                  {lang === 'fr' ? 'Nouveau Code Secret (min 6 caractères) *' : 'الرقم السري الجديد (6 خانات على الأقل) *'}
                 </label>
                 <input
                   type="password"
@@ -2670,7 +2653,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div>
                 <label className="block text-xs font-semibold text-stone-700 mb-1">
-                  {currentLang === 'fr' ? 'Confirmer le Nouveau Code *' : 'تأكيد الرقم السري الجديد *'}
+                  {lang === 'fr' ? 'Confirmer le Nouveau Code *' : 'تأكيد الرقم السري الجديد *'}
                 </label>
                 <input
                   type="password"
@@ -2688,14 +2671,14 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   onClick={() => setIsChangeAdminPinOpen(false)}
                   className="px-4 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-xl cursor-pointer"
                 >
-                  {currentLang === 'fr' ? 'Annuler' : 'إلغاء'}
+                  {lang === 'fr' ? 'Annuler' : 'إلغاء'}
                 </button>
                 <button
                   type="submit"
                   className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>{currentLang === 'fr' ? 'Enregistrer le Nouveau PIN' : 'حفظ وتحديث الرقم السري'}</span>
+                  <span>{lang === 'fr' ? 'Enregistrer le Nouveau PIN' : 'حفظ وتحديث الرقم السري'}</span>
                 </button>
               </div>
             </form>
@@ -2710,7 +2693,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
             <div className="flex items-center justify-between pb-3 border-b border-stone-200 mb-4">
               <h2 className="text-base font-bold text-stone-900 flex items-center gap-1.5">
                 <KeyRound className="w-4 h-4 text-amber-600" />
-                <span>{currentLang === 'fr' ? 'Émettre & Assigner une Licence' : 'إصدار وتفعيل رخصة دخول للطالب'}</span>
+                <span>{lang === 'fr' ? 'Émettre & Assigner une Licence' : 'إصدار وتفعيل رخصة دخول للطالب'}</span>
               </h2>
               <button onClick={() => setIsDispatchKeyOpen(false)} className="text-stone-400 hover:text-stone-900">
                 <X className="w-4 h-4" />
@@ -2720,7 +2703,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
             <form onSubmit={handleDispatchKey} className="space-y-3.5 text-xs">
               <div>
                 <label className="block font-semibold text-stone-700 mb-1">
-                  {currentLang === 'fr' ? 'Sélectionner le Livre' : 'اختيار المقرر المطلوب'}
+                  {lang === 'fr' ? 'Sélectionner le Livre' : 'اختيار المقرر المطلوب'}
                 </label>
                 <select
                   value={dispatchBookId}
@@ -2737,7 +2720,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div>
                 <label className="block font-semibold text-stone-700 mb-1">
-                  {currentLang === 'fr' ? 'E-mail Universitaire de l\'Étudiant' : 'البريد الجامعي للطالب'}
+                  {lang === 'fr' ? 'E-mail Universitaire de l\'Étudiant' : 'البريد الجامعي للطالب'}
                 </label>
                 <input
                   type="email"
@@ -2751,7 +2734,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div>
                 <label className="block font-semibold text-stone-700 mb-1">
-                  {currentLang === 'fr' ? 'N° Étudiant / Code Massar / Apogée' : 'الرقم الجامعي / رقم الطالب'}
+                  {lang === 'fr' ? 'N° Étudiant / Code Massar / Apogée' : 'الرقم الجامعي / رقم الطالب'}
                 </label>
                 <input
                   type="text"
@@ -2764,7 +2747,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               </div>
 
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-900 leading-relaxed">
-                {currentLang === 'fr'
+                {lang === 'fr'
                   ? 'Un code unique DRM sera automatiquement généré, activé sur l\'adresse IP de l\'étudiant et lié à son compte.'
                   : 'سيتم توليد كود تشفير فردي وربطه تلقائياً بحساب الطالب لمنع تداوله مع أطراف أخرى.'}
               </div>
@@ -2775,13 +2758,13 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   onClick={() => setIsDispatchKeyOpen(false)}
                   className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-lg cursor-pointer"
                 >
-                  {currentLang === 'fr' ? 'Fermer' : 'إغلاق'}
+                  {lang === 'fr' ? 'Fermer' : 'إغلاق'}
                 </button>
                 <button
                   type="submit"
                   className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold rounded-lg cursor-pointer"
                 >
-                  {currentLang === 'fr' ? 'Émettre & Envoyer le Code' : 'تفعيل وإرسال الكود'}
+                  {lang === 'fr' ? 'Émettre & Envoyer le Code' : 'تفعيل وإرسال الكود'}
                 </button>
               </div>
             </form>
@@ -2795,7 +2778,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-stone-200">
             <div className="flex items-center justify-between pb-3 border-b border-stone-200 mb-4">
               <h2 className="text-base font-bold text-stone-900">
-                {currentLang === 'fr' ? 'Enregistrer un Nouvel Enseignant' : 'إضافة حساب أستاذ جديد'}
+                {lang === 'fr' ? 'Enregistrer un Nouvel Enseignant' : 'إضافة حساب أستاذ جديد'}
               </h2>
               <button onClick={() => setIsAddProfOpen(false)} className="text-stone-400 hover:text-stone-900">
                 <X className="w-4 h-4" />
@@ -2805,7 +2788,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
             <form onSubmit={handleSaveProfessor} className="space-y-3.5 text-xs">
               <div>
                 <label className="block font-semibold text-stone-700 mb-1">
-                  {currentLang === 'fr' ? 'Nom et Prénom du Professeur' : 'الاسم الكامل للأستاذ'}
+                  {lang === 'fr' ? 'Nom et Prénom du Professeur' : 'الاسم الكامل للأستاذ'}
                 </label>
                 <input
                   type="text"
@@ -2819,7 +2802,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div>
                 <label className="block font-semibold text-stone-700 mb-1">
-                  {currentLang === 'fr' ? 'E-mail Professionnel' : 'البريد الإلكتروني المهني'}
+                  {lang === 'fr' ? 'E-mail Professionnel' : 'البريد الإلكتروني المهني'}
                 </label>
                 <input
                   type="email"
@@ -2833,7 +2816,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div>
                 <label className="block font-semibold text-stone-700 mb-1">
-                  {currentLang === 'fr' ? 'RIB Bancaire (24 Chiffres)' : 'رقم الحساب البنكي الكامل (24 رقماً)'}
+                  {lang === 'fr' ? 'RIB Bancaire (24 Chiffres)' : 'رقم الحساب البنكي الكامل (24 رقماً)'}
                 </label>
                 <input
                   type="text"
@@ -2848,7 +2831,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-stone-700 mb-1">
-                    {currentLang === 'fr' ? 'Banque / Agence' : 'اسم البنك / الوكالة'}
+                    {lang === 'fr' ? 'Banque / Agence' : 'اسم البنك / الوكالة'}
                   </label>
                   <input
                     type="text"
@@ -2862,7 +2845,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
                 <div>
                   <label className="block font-semibold text-stone-700 mb-1">
-                    {currentLang === 'fr' ? 'Part de l\'Auteur (%)' : 'نسبة الأستاذ (%)'}
+                    {lang === 'fr' ? 'Part de l\'Auteur (%)' : 'نسبة الأستاذ (%)'}
                   </label>
                   <input
                     type="number"
@@ -2882,13 +2865,13 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   onClick={() => setIsAddProfOpen(false)}
                   className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-lg cursor-pointer"
                 >
-                  {currentLang === 'fr' ? 'Annuler' : 'إلغاء'}
+                  {lang === 'fr' ? 'Annuler' : 'إلغاء'}
                 </button>
                 <button
                   type="submit"
                   className="px-5 py-2 bg-stone-900 hover:bg-stone-800 text-white font-bold rounded-lg cursor-pointer"
                 >
-                  {currentLang === 'fr' ? 'Enregistrer l\'Enseignant' : 'حفظ الحساب'}
+                  {lang === 'fr' ? 'Enregistrer l\'Enseignant' : 'حفظ الحساب'}
                 </button>
               </div>
             </form>
@@ -2902,7 +2885,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-stone-200">
             <div className="flex items-center justify-between pb-3 border-b border-stone-200 mb-4">
               <h2 className="text-base font-bold text-stone-900">
-                {currentLang === 'fr' ? 'Ajouter une Nouvelle Faculté / Établissement' : 'إضافة كلية أو مؤسسة جامعية جديدة'}
+                {lang === 'fr' ? 'Ajouter une Nouvelle Faculté / Établissement' : 'إضافة كلية أو مؤسسة جامعية جديدة'}
               </h2>
               <button onClick={() => setIsAddFacultyOpen(false)} className="text-stone-400 hover:text-stone-900">
                 <X className="w-4 h-4" />
@@ -2912,7 +2895,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
             <form onSubmit={handleSaveFaculty} className="space-y-3.5 text-xs">
               <div>
                 <label className="block font-semibold text-stone-700 mb-1">
-                  {currentLang === 'fr' ? 'Code Abrégé (Ex: FP-LAR, ENSA, FS)' : 'رمز الكلية (مثال: ENSA, FS)'}
+                  {lang === 'fr' ? 'Code Abrégé (Ex: FP-LAR, ENSA, FS)' : 'رمز الكلية (مثال: ENSA, FS)'}
                 </label>
                 <input
                   type="text"
@@ -2926,7 +2909,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div>
                 <label className="block font-semibold text-stone-700 mb-1">
-                  {currentLang === 'fr' ? 'Nom Complet (Français)' : 'الاسم الكامل بالفرنسية'}
+                  {lang === 'fr' ? 'Nom Complet (Français)' : 'الاسم الكامل بالفرنسية'}
                 </label>
                 <input
                   type="text"
@@ -2940,7 +2923,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div>
                 <label className="block font-semibold text-stone-700 mb-1">
-                  {currentLang === 'fr' ? 'Nom Complet (Arabe)' : 'الاسم الكامل بالعربية'}
+                  {lang === 'fr' ? 'Nom Complet (Arabe)' : 'الاسم الكامل بالعربية'}
                 </label>
                 <input
                   type="text"
@@ -2953,7 +2936,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div>
                 <label className="block font-semibold text-stone-700 mb-1">
-                  {currentLang === 'fr' ? 'Description des Filières' : 'التخصصات والشعب'}
+                  {lang === 'fr' ? 'Description des Filières' : 'التخصصات والشعب'}
                 </label>
                 <input
                   type="text"
@@ -2970,13 +2953,13 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   onClick={() => setIsAddFacultyOpen(false)}
                   className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-lg cursor-pointer"
                 >
-                  {currentLang === 'fr' ? 'Annuler' : 'إلغاء'}
+                  {lang === 'fr' ? 'Annuler' : 'إلغاء'}
                 </button>
                 <button
                   type="submit"
                   className="px-5 py-2 bg-stone-900 hover:bg-stone-800 text-white font-bold rounded-lg cursor-pointer"
                 >
-                  {currentLang === 'fr' ? 'Créer l\'Établissement' : 'إضافة الكلية'}
+                  {lang === 'fr' ? 'Créer l\'Établissement' : 'إضافة الكلية'}
                 </button>
               </div>
             </form>
@@ -2991,7 +2974,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
             <div className="flex items-center justify-between pb-3 border-b border-stone-200 mb-4">
               <h2 className="text-base font-bold text-stone-900 flex items-center gap-1.5">
                 <CreditCard className="w-4 h-4 text-emerald-600" />
-                <span>{currentLang === 'fr' ? 'Ordre de Virement Bancaire' : 'تنفيذ تحويل بنكي للأرباح'}</span>
+                <span>{lang === 'fr' ? 'Ordre de Virement Bancaire' : 'تنفيذ تحويل بنكي للأرباح'}</span>
               </h2>
               <button onClick={() => setIsPayoutModalOpen(false)} className="text-stone-400 hover:text-stone-900">
                 <X className="w-4 h-4" />
@@ -3000,7 +2983,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
             <form onSubmit={handleExecutePayout} className="space-y-3.5 text-xs">
               <div className="p-3 bg-stone-50 border border-stone-200 rounded-lg space-y-1">
-                <div className="text-[11px] text-stone-500">{currentLang === 'fr' ? 'Bénéficiaire' : 'المستفيد'}:</div>
+                <div className="text-[11px] text-stone-500">{lang === 'fr' ? 'Bénéficiaire' : 'المستفيد'}:</div>
                 <div className="font-bold text-stone-900 text-sm">{selectedProfForPayout.fullName}</div>
                 <div className="font-mono text-stone-700 text-xs">{selectedProfForPayout.bankRib}</div>
                 <div className="text-[11px] text-stone-500">{selectedProfForPayout.bankName}</div>
@@ -3008,7 +2991,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div>
                 <label className="block font-semibold text-stone-700 mb-1">
-                  {currentLang === 'fr' ? 'Montant à Transférer (MAD)' : 'المبلغ المراد تحويله (درهم)'}
+                  {lang === 'fr' ? 'Montant à Transférer (MAD)' : 'المبلغ المراد تحويله (درهم)'}
                 </label>
                 <input
                   type="number"
@@ -3023,7 +3006,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
               <div>
                 <label className="block font-semibold text-stone-700 mb-1">
-                  {currentLang === 'fr' ? 'Référence de Virement' : 'الرقم المرجعي للتحويل'}
+                  {lang === 'fr' ? 'Référence de Virement' : 'الرقم المرجعي للتحويل'}
                 </label>
                 <input
                   type="text"
@@ -3040,13 +3023,13 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   onClick={() => setIsPayoutModalOpen(false)}
                   className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-lg cursor-pointer"
                 >
-                  {currentLang === 'fr' ? 'Annuler' : 'إلغاء'}
+                  {lang === 'fr' ? 'Annuler' : 'إلغاء'}
                 </button>
                 <button
                   type="submit"
                   className="px-5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-bold rounded-lg cursor-pointer shadow-xs"
                 >
-                  {currentLang === 'fr' ? 'Confirmer le Virement' : 'تأكيد أمر التحويل'}
+                  {lang === 'fr' ? 'Confirmer le Virement' : 'تأكيد أمر التحويل'}
                 </button>
               </div>
             </form>
