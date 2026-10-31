@@ -1651,7 +1651,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   {lang === 'fr' ? 'Part Droits d\'Auteurs (80%)' : 'مستحقات الأساتذة (80%)'}
                 </div>
                 <div className="text-xl font-black text-white font-mono tabular-nums">
-                  {adminCommercialAccount.professorsTotalEarnedMAD.toLocaleString()} DH
+                  {(adminCommercialAccount?.professorsTotalEarnedMAD || 0).toLocaleString()} DH
                 </div>
                 <div className="text-[10px] text-stone-400 mt-1">Droits d'auteurs globaux</div>
               </div>
@@ -1661,9 +1661,9 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   {lang === 'fr' ? 'Déjà Transféré aux Profs' : 'المحول فعلياً للأساتذة'}
                 </div>
                 <div className="text-xl font-black text-emerald-400 font-mono tabular-nums">
-                  {adminCommercialAccount.professorsTotalPaidMAD.toLocaleString()} DH
+                  {(adminCommercialAccount?.professorsTotalPaidMAD || 0).toLocaleString()} DH
                 </div>
-                <div className="text-[10px] text-amber-300 mt-1">{adminCommercialAccount.professorsPendingMAD.toLocaleString()} DH en attente</div>
+                {(adminCommercialAccount?.professorsPendingMAD || 0).toLocaleString()} DH en attente
               </div>
             </div>
           </div>
@@ -1797,7 +1797,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                       {tx.date}
                     </td>
                     <td className="py-3 px-4 text-right font-mono font-extrabold text-emerald-800 tabular-nums">
-                      {tx.amountMAD.toLocaleString()} DH
+                      {(tx?.amountMAD || 0).toLocaleString()} DH
                     </td>
                     <td className="py-3 px-4 text-center">
                       <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
