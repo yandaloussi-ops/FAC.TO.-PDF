@@ -174,7 +174,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
   const [activeTab, setActiveTab] = useState<'books' | 'licenses' | 'professors' | 'students' | 'faculties' | 'commercial' | 'payouts' | 'security'>('books');
   const [searchFilter, setSearchFilter] = useState('');
-
+  const [currentLang, setCurrentLang] = useState<'ar' | 'fr'>(lang || 'ar');
   // Security & Data Protection states
   const [securityConfig, setSecurityConfig] = useState<SecurityShieldConfig>(INITIAL_SECURITY_CONFIG);
   const [auditLogs, setAuditLogs] = useState<SecurityAuditLog[]>(INITIAL_SECURITY_AUDIT_LOGS);
@@ -799,13 +799,17 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
         </div>
       </div>
 {/* زر تغيير اللغة */}
-      <button
-        type="button"
-        onClick={() => onToggleLang && onToggleLang()}
-        className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 rounded-md text-xs font-bold transition-all border border-amber-500/30 cursor-pointer"
-      >
-        <span>{lang === 'fr' ? 'العربية' : 'Français'}</span>
-      </button>
+<button
+  type="button"
+  onClick={() => {
+    const nextLang = currentLang === 'ar' ? 'fr' : 'ar';
+    setCurrentLang(nextLang);
+    if (onToggleLang) onToggleLang();
+  }}
+  className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 rounded-md text-xs font-bold transition-all border border-amber-500/30 cursor-pointer"
+>
+  <span>{currentLang === 'fr' ? 'العربية' : 'Français'}</span>
+</button>
       {/* Admin Top Header & Global Metrics */}
       <div className="mb-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-stone-200">
