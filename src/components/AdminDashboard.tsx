@@ -121,7 +121,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   faculties = [],
   onAddFaculty,
   payoutTransactions = [],
-  safeAdminAccount = { holderName: 'حساب الإدارة التجاري', bankName: '', agencyCity: '', bankRib: '', swift: '' },
+  adminCommercialAccount = { holderName: 'حساب الإدارة التجاري', bankName: '', agencyCity: '', bankRib: '', swift: '', professorsTotalEarnedMAD: 0, professorsTotalPaidMAD: 0, professorsPendingMAD: 0, totalCollectedGrossMAD: 0 },
   paymentOrders = [],
   onReturnHome,
   onLockAdmin,
@@ -138,18 +138,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [loadingOrders, setLoadingOrders] = useState<boolean>(true);
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null);
   const [selectedReceiptUrl, setSelectedReceiptUrl] = useState<string | null>(null);
-const safeAdminAccount = {
-    holderName: 'حساب الإدارة التجاري',
-    bankName: '',
-    agencyCity: '',
-    bankRib: '',
-    swift: '',
-    professorsTotalEarnedMAD: 0,
-    professorsTotalPaidMAD: 0,
-    professorsPendingMAD: 0,
-    totalCollectedGrossMAD: 0,
-    ...safeAdminAccount
-  };
+
   // جلب طلبات الشراء حياً من Firestore
  useEffect(() => {
    const ordersQuery = query(collection(db, 'paymentOrders'), orderBy('createdAt', 'desc'));
