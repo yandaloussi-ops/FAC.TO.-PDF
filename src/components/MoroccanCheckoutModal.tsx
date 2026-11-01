@@ -139,7 +139,7 @@ try {
                   رقم حساب Cash Plus:
                 </span>
                 <span className="font-mono font-bold text-amber-400 text-xs dir-ltr tracking-wider">
-                  {adminRib || '835780030017922633209157'}
+                  835780030017922633209157
                 </span>
               </div>
               <div className="flex items-center justify-between pt-0.5">
