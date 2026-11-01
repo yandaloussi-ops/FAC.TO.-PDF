@@ -23,6 +23,7 @@ interface MoroccanCheckoutModalProps {
 export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
   book,
   student,
+  adminRib,
   onClose,
 }) => {
   const [studentName, setStudentName] = useState(student?.name || '');
@@ -65,7 +66,7 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
     }
 
     // 3. فتح الواتساب في نافذة جديدة (لكي يستمر الكود أسفله في حفظ الطلب في Firestore)
-    const phone = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
+    const phone = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '212645987915';
     const textMessage = encodeURIComponent(
       `مرحباً، أود تأكيد طلبي لشراء المطبوع\n` +
       `الاسم: ${studentName}\n` +
@@ -130,7 +131,27 @@ try {
                 الكتاب: <strong className="text-slate-200">{book.title}</strong> — السعر: <strong className="text-emerald-400">{book.price} DH</strong>
               </p>
             </div>
-
+{/* بطاقة معلومات الحساب وهاتف الإدارة */}
+            <div className="bg-slate-800/80 border border-amber-500/30 rounded-xl p-3.5 space-y-2 text-xs text-slate-200 my-4">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-700/60">
+                <span className="text-slate-400 font-medium flex items-center gap-1.5">
+                  <CreditCard className="w-3.5 h-3.5 text-amber-400" />
+                  رقم حساب Cash Plus:
+                </span>
+                <span className="font-mono font-bold text-amber-400 text-xs dir-ltr tracking-wider">
+                  {adminRib || '835780030017922633209157'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between pt-0.5">
+                <span className="text-slate-400 font-medium flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                  هاتف الإدارة للتأكيد:
+                </span>
+                <span className="font-mono font-bold text-emerald-400 text-xs dir-ltr">
+                  +212 645-987915
+                </span>
+              </div>
+            </div>
             <form onSubmit={handleSubmitOrder} className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">الاسم الكامل *</label>
