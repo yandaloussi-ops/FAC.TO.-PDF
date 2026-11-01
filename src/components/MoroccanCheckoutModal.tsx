@@ -65,27 +65,48 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
       console.error('خطأ في إرسال البريد:', emailErr);
     }
 
-    // 3. فتح الواتساب في نافذة جديدة (لكي يستمر الكود أسفله في حفظ الطلب في Firestore)
-    const phone = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '212645987915';
-    const textMessage = encodeURIComponent(
-      `مرحباً، أود تأكيد طلبي لشراء المطبوع\n` +
-      `الاسم: ${studentName}\n` +
-      `البريد الإلكتروني: ${studentEmail}\n` +
-      `رابط وصل الدفع: ${receiptUrl}`
-    );
-    window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${textMessage}`, '_blank');
-      // 2. حفظ الطلب في Firestore بحالة pending
-      await addDoc(collection(db, 'paymentOrders'), {
-        bookId: book?.id || '',
-        bookTitle: book?.title || '',
-        bookPrice: book?.price ?? 0,
-        studentName,
-        studentEmail,
-        studentPhone,
-        receiptUrl,
-        status: 'pending',
-        createdAt: serverTimestamp(),
-      });
+   // 1. توليد مفتاح DRM فريد مرتبط بالكتاب والمستعمل
+const generatedDrmKey = `FAC-2026-${Math.random().toString(36).substring(2, 7).toUpperCase()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+const actualPrice = (book as any)?.priceMAD ?? book?.price ?? 50;
+
+// 2. إنشاء مفتاح الـ DRM في Firestore بحالة نشطة ومربوط بالكتاب
+await addDoc(collection(db, 'drm_keys'), {
+  key: generatedDrmKey,
+  bookId: book?.id || '',
+  bookTitle: book?.title || '',
+  studentEmail: studentEmail,
+  studentName: studentName,
+  deviceId: null, // سيتم ربطه تلقائياً عند أول فتح للمطبوع من جهاز الطالب
+  status: 'active', // مفعل فوراً، ويمكن للإدارة تحويله إلى revoked لاحقاً
+  createdAt: serverTimestamp(),
+});
+
+// 3. حفظ تفاصيل طلب الشراء في Firestore
+await addDoc(collection(db, 'paymentOrders'), {
+  bookId: book?.id || '',
+  bookTitle: book?.title || '',
+  bookPrice: actualPrice,
+  studentName,
+  studentEmail,
+  studentPhone,
+  receiptUrl,
+  drmKey: generatedDrmKey,
+  status: 'active', // أو pending للمراجعة البعدية
+  createdAt: serverTimestamp(),
+});
+
+// 4. تجهيز رسالة الواتساب الشاملة وتوجيه الطالب
+const phone = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '212645987915';
+const textMessage = encodeURIComponent(
+  `مرحباً، أود تأكيد طلبي لشراء المطبوع:\n` +
+  `📘 الكتاب: ${book?.title}\n` +
+  `👤 الاسم: ${studentName}\n` +
+  `📧 البريد: ${studentEmail}\n` +
+  `🔑 مفتاح التفعيل: ${generatedDrmKey}\n` +
+  `🧾 رابط وصل الدفع: ${receiptUrl}`
+);
+
+window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${textMessage}`, '_blank');
 // إرسال بريد إلكتروني لتأكيد الطلب عبر Resend
 try {
   await fetch('/api/send-email', {
