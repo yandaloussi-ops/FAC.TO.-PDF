@@ -128,7 +128,7 @@ try {
               </span>
               <h3 className="text-xl font-bold text-white">تأكيد طلب شراء الكتاب</h3>
               <p className="text-xs text-slate-400 mt-1">
-                الكتاب: <strong className="text-slate-200">{book?.title}</strong> — السعر: <strong className="text-emerald-400">{book?.price ?? '—'} DH</strong>
+                الكتاب: <strong className="text-slate-200">{book?.title}</strong> — السعر: <strong className="text-emerald-400">{(book as any)?.priceMAD ?? book?.price ?? 50} DH</strong>
               </p>
             </div>
 {/* بطاقة معلومات الحساب وهاتف الإدارة */}
