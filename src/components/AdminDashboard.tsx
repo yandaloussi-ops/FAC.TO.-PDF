@@ -152,7 +152,7 @@ const safeAdminAccount = adminCommercialAccount;
 const [adminBooks, setAdminBooks] = useState<any[]>([]);
 
 useEffect(() => {
-  const booksQuery = query(collection(db, 'books'), orderBy('createdAt', 'desc'));
+  const booksQuery = query(collection(db, 'polycopies'), orderBy('createdAt', 'desc'));
   const unsubscribe = onSnapshot(booksQuery, (snapshot) => {
     const fetchedBooks = snapshot.docs.map((doc) => ({
       id: doc.id,
