@@ -148,7 +148,23 @@ const safeAdminAccount = adminCommercialAccount;
   const [loadingOrders, setLoadingOrders] = useState<boolean>(true);
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null);
   const [selectedReceiptUrl, setSelectedReceiptUrl] = useState<string | null>(null);
+// --- حالات وقارئ الكتب والكتالوج ---
+const [books, setBooks] = useState<any[]>([]);
 
+useEffect(() => {
+  const booksQuery = query(collection(db, 'books'), orderBy('createdAt', 'desc'));
+  const unsubscribe = onSnapshot(booksQuery, (snapshot) => {
+    const fetchedBooks = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    setBooks(fetchedBooks);
+  }, (error) => {
+    console.error("Error fetching books:", error);
+  });
+
+  return () => unsubscribe();
+}, []);
   // جلب طلبات الشراء حياً من Firestore
  useEffect(() => {
    const ordersQuery = query(collection(db, 'paymentOrders'), orderBy('createdAt', 'desc'));
