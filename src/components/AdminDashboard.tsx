@@ -2721,16 +2721,23 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   {lang === 'fr' ? 'Sélectionner le Livre' : 'اختيار المقرر المطلوب'}
                 </label>
                 <select
-                  value={dispatchBookId}
-                  onChange={(e) => setDispatchBookId(e.target.value)}
-                  className="w-full p-2.5 border border-stone-300 rounded-lg text-xs"
-                >
-                  {books.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.title} ({b.facultyLabel})
-                    </option>
-                  ))}
-                </select>
+  value={dispatchBookId}
+  onChange={(e) => setDispatchBookId(e.target.value)}
+  className="w-full p-2.5 border border-stone-300 rounded-lg text-xs font-semibold text-stone-800 bg-white"
+>
+  <option value="">-- {lang === 'fr' ? 'Sélectionner un livre' : 'اختر المقرر المطلوب'} --</option>
+  {books && books.length > 0 ? (
+    books.map((b) => (
+      <option key={b.id} value={b.id}>
+        {b.title} {b.facultyLabel ? `(${b.facultyLabel})` : ''}
+      </option>
+    ))
+  ) : (
+    <option value="" disabled>
+      {lang === 'fr' ? 'Aucun livre disponible' : 'لا توجد مقررات متاحة'}
+    </option>
+  )}
+</select>
               </div>
 
               <div>
