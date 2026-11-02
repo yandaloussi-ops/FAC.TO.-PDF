@@ -186,31 +186,68 @@ useEffect(() => {
   const handleSeedBooksToFirestore = async () => {
     try {
       let count = 0;
-      // التعامل المباشر سواء كانت القائمة مصفوفة كليات مباشرة أو كائنات فرعية
-      const facultiesList = Array.isArray(UNIVERSITIES_DATABASE) 
-        ? UNIVERSITIES_DATABASE 
-        : (UNIVERSITIES_DATABASE as any).faculties || [];
+      const allBooks: any[] = [];
 
-      for (const fac of facultiesList) {
-        const semesters = fac.semesters || [];
-        for (const sem of semesters) {
-          const books = sem.books || [];
-          for (const book of books) {
-            const bookRef = doc(db, 'books', book.id);
-            const payload = JSON.parse(JSON.stringify({
-              ...book,
-              universityId: fac.universityId || 'default_uni',
-              facultyId: fac.id,
-              facultyLabel: fac.name || fac.title || '',
-              semesterId: sem.id,
-              createdAt: new Date().toISOString()
-            }));
-
-            await setDoc(bookRef, payload, { merge: true });
-            count++;
+      // 1. استخراج كل الكتب بغض النظر عن طريقة تخزين البيانات
+      const rawData = UNIVERSITIES_DATABASE as any;
+      
+      if (Array.isArray(rawData)) {
+        rawData.forEach((item: any) => {
+          // إذا كان العنصر يحتوي على كليات
+          const faculties = item.faculties || [item];
+          faculties.forEach((fac: any) => {
+            (fac.semesters || []).forEach((sem: any) => {
+              (sem.books || []).forEach((b: any) => {
+                allBooks.push({
+                  ...b,
+                  facultyId: fac.id || 'default_fac',
+                  facultyLabel: fac.name || fac.title || '',
+                  semesterId: sem.id || 'default_sem'
+                });
+              });
+            });
+          });
+        });
+      } else if (rawData && typeof rawData === 'object') {
+        Object.values(rawData).forEach((val: any) => {
+          if (Array.isArray(val)) {
+            val.forEach((fac: any) => {
+              (fac.semesters || []).forEach((sem: any) => {
+                (sem.books || []).forEach((b: any) => {
+                  allBooks.push({
+                    ...b,
+                    facultyId: fac.id || 'default_fac',
+                    facultyLabel: fac.name || fac.title || '',
+                    semesterId: sem.id || 'default_sem'
+                  });
+                });
+              });
+            });
           }
-        }
+        });
       }
+
+      console.log("الكتب التي تم استخراجها للرفع:", allBooks);
+
+      if (allBooks.length === 0) {
+        alert("لم يتم العثور على أي كتب في UNIVERSITIES_DATABASE. يرجى التثبت من الملف المحلي.");
+        return;
+      }
+
+      // 2. رفع الكتب المستخرجة إلى Firestore
+      for (const book of allBooks) {
+        const bookId = book.id || `book_${Math.random().toString(36).substr(2, 9)}`;
+        const bookRef = doc(db, 'books', bookId);
+        const payload = JSON.parse(JSON.stringify({
+          ...book,
+          id: bookId,
+          createdAt: new Date().toISOString()
+        }));
+
+        await setDoc(bookRef, payload, { merge: true });
+        count++;
+      }
+
       alert(`تم رفع ${count} كتاب إلى Firestore بنجاح!`);
     } catch (err) {
       console.error("خطأ أثناء رفع الكتب:", err);
