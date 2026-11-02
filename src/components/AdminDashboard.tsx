@@ -188,59 +188,35 @@ useEffect(() => {
       let count = 0;
       const allBooks: any[] = [];
 
-      // 1. استخراج كل الكتب بغض النظر عن طريقة تخزين البيانات
-      const rawData = UNIVERSITIES_DATABASE as any;
-      
-      if (Array.isArray(rawData)) {
-        rawData.forEach((item: any) => {
-          // إذا كان العنصر يحتوي على كليات
-          const faculties = item.faculties || [item];
-          faculties.forEach((fac: any) => {
-            (fac.semesters || []).forEach((sem: any) => {
-              (sem.books || []).forEach((b: any) => {
-                allBooks.push({
-                  ...b,
-                  facultyId: fac.id || 'default_fac',
-                  facultyLabel: fac.name || fac.title || '',
-                  semesterId: sem.id || 'default_sem'
-                });
-              });
-            });
-          });
-        });
-      } else if (rawData && typeof rawData === 'object') {
-        Object.values(rawData).forEach((val: any) => {
-          if (Array.isArray(val)) {
-            val.forEach((fac: any) => {
-              (fac.semesters || []).forEach((sem: any) => {
-                (sem.books || []).forEach((b: any) => {
-                  allBooks.push({
-                    ...b,
-                    facultyId: fac.id || 'default_fac',
-                    facultyLabel: fac.name || fac.title || '',
-                    semesterId: sem.id || 'default_sem'
-                  });
-                });
-              });
-            });
+      // دالة لاستخراج الكتب مهما كان عمق وتداخل الكائنات أو المصفوفات
+      const extractBooks = (node: any) => {
+        if (!node) return;
+        if (Array.isArray(node)) {
+          node.forEach(item => extractBooks(item));
+        } else if (typeof node === 'object') {
+          // إذا كان الكائن يمثل كتاباً (يحتوي على title و id أو price)
+          if (node.id && (node.title || node.name) && (node.price !== undefined || node.author || node.pdfUrl)) {
+            allBooks.push(node);
+          } else {
+            Object.values(node).forEach(child => extractBooks(child));
           }
-        });
-      }
+        }
+      };
 
-      console.log("الكتب التي تم استخراجها للرفع:", allBooks);
+      extractBooks(UNIVERSITIES_DATABASE);
 
-      if (allBooks.length === 0) {
-        alert("لم يتم العثور على أي كتب في UNIVERSITIES_DATABASE. يرجى التثبت من الملف المحلي.");
+      // إزالة التكرار إن وجد بناءً على الـ ID
+      const uniqueBooks = Array.from(new Map(allBooks.map(b => [b.id, b])).values());
+
+      if (uniqueBooks.length === 0) {
+        alert("لم يتم العثور على أسرار بيانات الكتب داخل UNIVERSITIES_DATABASE، يرجى مشاركة محتوى ملف mockBooks.ts");
         return;
       }
 
-      // 2. رفع الكتب المستخرجة إلى Firestore
-      for (const book of allBooks) {
-        const bookId = book.id || `book_${Math.random().toString(36).substr(2, 9)}`;
-        const bookRef = doc(db, 'books', bookId);
+      for (const book of uniqueBooks) {
+        const bookRef = doc(db, 'books', book.id);
         const payload = JSON.parse(JSON.stringify({
           ...book,
-          id: bookId,
           createdAt: new Date().toISOString()
         }));
 
