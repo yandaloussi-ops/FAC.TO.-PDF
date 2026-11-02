@@ -187,18 +187,20 @@ useEffect(() => {
     try {
       let count = 0;
       for (const uni of UNIVERSITIES_DATABASE) {
-        for (const fac of uni.faculties) {
-          for (const sem of fac.semesters) {
-            for (const book of sem.books) {
+        for (const fac of (uni.faculties || [])) {
+          for (const sem of (fac.semesters || [])) {
+            for (const book of (sem.books || [])) {
               const bookRef = doc(db, 'books', book.id);
-              await setDoc(bookRef, {
+              const payload = JSON.parse(JSON.stringify({
                 ...book,
                 universityId: uni.id,
                 facultyId: fac.id,
                 facultyLabel: fac.name,
                 semesterId: sem.id,
                 createdAt: new Date().toISOString()
-              }, { merge: true });
+              }));
+
+              await setDoc(bookRef, payload, { merge: true });
               count++;
             }
           }
@@ -207,7 +209,7 @@ useEffect(() => {
       alert(`تم رفع ${count} كتاب إلى Firestore بنجاح!`);
     } catch (err) {
       console.error("خطأ أثناء رفع الكتب:", err);
-      alert("حدث خطأ أثناء الرفع، راجع الـ Console");
+      alert(`حدث خطأ أثناء الرفع: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
   // دالة تفعيل الطلب
