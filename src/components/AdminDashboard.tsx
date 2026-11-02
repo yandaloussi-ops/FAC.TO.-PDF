@@ -186,23 +186,28 @@ useEffect(() => {
   const handleSeedBooksToFirestore = async () => {
     try {
       let count = 0;
-      for (const uni of UNIVERSITIES_DATABASE) {
-        for (const fac of (uni.faculties || [])) {
-          for (const sem of (fac.semesters || [])) {
-            for (const book of (sem.books || [])) {
-              const bookRef = doc(db, 'books', book.id);
-              const payload = JSON.parse(JSON.stringify({
-                ...book,
-                universityId: uni.id,
-                facultyId: fac.id,
-                facultyLabel: fac.name,
-                semesterId: sem.id,
-                createdAt: new Date().toISOString()
-              }));
+      // التعامل المباشر سواء كانت القائمة مصفوفة كليات مباشرة أو كائنات فرعية
+      const facultiesList = Array.isArray(UNIVERSITIES_DATABASE) 
+        ? UNIVERSITIES_DATABASE 
+        : (UNIVERSITIES_DATABASE as any).faculties || [];
 
-              await setDoc(bookRef, payload, { merge: true });
-              count++;
-            }
+      for (const fac of facultiesList) {
+        const semesters = fac.semesters || [];
+        for (const sem of semesters) {
+          const books = sem.books || [];
+          for (const book of books) {
+            const bookRef = doc(db, 'books', book.id);
+            const payload = JSON.parse(JSON.stringify({
+              ...book,
+              universityId: fac.universityId || 'default_uni',
+              facultyId: fac.id,
+              facultyLabel: fac.name || fac.title || '',
+              semesterId: sem.id,
+              createdAt: new Date().toISOString()
+            }));
+
+            await setDoc(bookRef, payload, { merge: true });
+            count++;
           }
         }
       }
