@@ -1,3 +1,5 @@
+import { UNIVERSITIES_DATABASE } from '../data/mockBooks';
+import { doc, setDoc } from 'firebase/firestore';
 import React, { useState, useEffect } from 'react';
 import {
   Book,
@@ -152,7 +154,7 @@ const safeAdminAccount = adminCommercialAccount;
 const [adminBooks, setAdminBooks] = useState<any[]>([]);
 
 useEffect(() => {
-  const booksQuery = query(collection(db, 'polycopies'), orderBy('createdAt', 'desc'));
+  const booksQuery = query(collection(db, 'books'), orderBy('createdAt', 'desc'));
   const unsubscribe = onSnapshot(booksQuery, (snapshot) => {
     const fetchedBooks = snapshot.docs.map((doc) => ({
       id: doc.id,
@@ -182,7 +184,34 @@ useEffect(() => {
 
    return () => unsubscribe();
   }, []);
-
+// دالة مزامنة ورفع كتب الكتالوج إلى Firestore
+  const handleSeedBooksToFirestore = async () => {
+    try {
+      let count = 0;
+      for (const uni of UNIVERSITIES_DATABASE) {
+        for (const fac of uni.faculties) {
+          for (const sem of fac.semesters) {
+            for (const book of sem.books) {
+              const bookRef = doc(db, 'books', book.id);
+              await setDoc(bookRef, {
+                ...book,
+                universityId: uni.id,
+                facultyId: fac.id,
+                facultyLabel: fac.name,
+                semesterId: sem.id,
+                createdAt: new Date().toISOString()
+              }, { merge: true });
+              count++;
+            }
+          }
+        }
+      }
+      alert(`تم رفع ${count} كتاب إلى Firestore بنجاح!`);
+    } catch (err) {
+      console.error("خطأ أثناء رفع الكتب:", err);
+      alert("حدث خطأ أثناء الرفع، راجع الـ Console");
+    }
+  };
   // دالة تفعيل الطلب
   const handleApproveOrder = async (order: PaymentOrder) => {
     setProcessingOrderId(order.id);
@@ -1061,6 +1090,18 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
 
             <button
               onClick={() => setIsAddBookOpen(true)}
+             <button 
+            onClick={handleSeedBooksToFirestore}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow transition-all flex items-center gap-1.5"
+          >
+            ⚡ رفع كتب المكتبة إلى Firestore
+          </button>
+          <button
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold rounded-lg"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>{lang === 'fr' ? 'Nouveau Livre' : 'إضافة كتاب'}</span>
+          </button>
               className="flex items-center gap-1.5 px-3.5 py-1.5 bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
