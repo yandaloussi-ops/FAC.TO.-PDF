@@ -1,5 +1,3 @@
-import { UNIVERSITIES_DATABASE } from '../data/mockBooks';
-import { doc, setDoc } from 'firebase/firestore';
 import React, { useState, useEffect } from 'react';
 import {
   Book,
@@ -28,7 +26,7 @@ import {
 import { saveBookPdf, getPdfPageCount } from '../utils/pdfStorage';
 import { useAcademicStructure, registerDynamicAcademicUnit } from '../utils/academicStructureStorage';
 import { db } from '../firebase';
-import { collection, onSnapshot, doc, updateDoc, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, updateDoc, query, orderBy } from 'firebase/firestore';
 import {
   BookOpen,
   Eye,
