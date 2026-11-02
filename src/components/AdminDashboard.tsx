@@ -1088,25 +1088,21 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               </p>
             </div>
 
-            <button
-              onClick={() => setIsAddBookOpen(true)}
-             <button 
+            <button 
             onClick={handleSeedBooksToFirestore}
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow transition-all flex items-center gap-1.5"
           >
             ⚡ رفع كتب المكتبة إلى Firestore
           </button>
+
           <button
+            onClick={() => setIsAddBookOpen(true)}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold rounded-lg"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>{lang === 'fr' ? 'Nouveau Livre' : 'إضافة كتاب'}</span>
           </button>
-              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>{lang === 'fr' ? 'Nouveau Livre' : 'إضافة كتاب'}</span>
-            </button>
+             
           </div>
 
           {/* Admin PDF Upload Toast Banner */}
