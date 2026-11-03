@@ -35,7 +35,7 @@ import { generateDefaultCoverSvg } from '../utils/storage';
 import { saveBookPdf, compressCoverImage, getPdfPageCount } from '../utils/pdfStorage';
 import { useAcademicStructure, registerDynamicAcademicUnit } from '../utils/academicStructureStorage';
 import { BookShareModal } from './BookShareModal';
-
+import { saveBookToFirestore, saveProfessorToFirestore, uploadFileToStorage } from '../services/firestoreService';
 if (typeof window !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 }
@@ -306,7 +306,7 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
       if (uploadedPdfFile) {
         try {
           detectedPages = await getPdfPageCount(uploadedPdfFile);
-          storedPdfUrl = await saveBookPdf(bookId, uploadedPdfFile);
+          storedPdfUrl = await uploadFileToStorage(uploadedPdfFile, 'books/pdfs');
         } catch (pdfErr) {
           console.warn('PDF storage warning, continuing with in-app reader:', pdfErr);
         }
@@ -480,7 +480,12 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
               },
             ],
       };
+// 1. حفظ بيانات الكتاب سحابياً في Firestore
+  await saveBookToFirestore(newBook);
 
+  if (onUploadBook) {
+    onUploadBook(newBook);
+  }
       if (onUploadBook) {
         onUploadBook(newBook);
       }
