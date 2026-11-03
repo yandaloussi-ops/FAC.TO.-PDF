@@ -5,6 +5,7 @@ import UploadBook from './UploadBook';
  */
 
 import React, { useState, useEffect } from 'react';
+import { subscribeToBooks, subscribeToProfessors } from './services/firestoreService';
 import { Navbar } from './components/Navbar';
 import { HomePage } from './components/HomePage';
 import { Hero } from './components/Hero';
@@ -72,10 +73,29 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Primary data state with persistent storage (Fix for Point 5)
-  const [books, setBooks] = useState<Book[]>(() => getStoredBooks());
-  const [student, setStudent] = useState<StudentProfile>(() => getStoredStudent());
-  const [registeredStudents, setRegisteredStudents] = useState<StudentProfile[]>(() => getStoredRegisteredStudents());
-  const [professors, setProfessors] = useState<Professor[]>(() => getStoredProfessors());
+  const [books, setBooks] = useState<Book[]>([]);
+  const [student, setStudent] = useState<StudentProfile | null>(null);
+  const [registeredStudents, setRegisteredStudents] = useState<StudentProfile[]>([]);
+  const [professors, setProfessors] = useState<any[]>([]);
+  useEffect(() => {
+    // تنظيف الذاكرة المحلية نهائياً لمنع قراءة البيانات القديمة
+    localStorage.clear();
+
+    // جلب الكتب حياً ومباشرة من Firebase Firestore
+    const unsubBooks = subscribeToBooks((data) => {
+      setBooks(data || []);
+    });
+
+    // جلب الأساتذة حياً ومباشرة من Firebase Firestore
+    const unsubProfs = subscribeToProfessors((data) => {
+      setProfessors(data || []);
+    });
+
+    return () => {
+      unsubBooks();
+      unsubProfs();
+    };
+  }, []);
   const [drmLicenses, setDrmLicenses] = useState<DRMAccessLicense[]>(INITIAL_DRM_LICENSES);
   const [faculties, setFaculties] = useState<FacultyItem[]>(INITIAL_FACULTIES);
   const [payoutTransactions, setPayoutTransactions] = useState<PayoutTransaction[]>(INITIAL_PAYOUT_TRANSACTIONS);
