@@ -9,6 +9,9 @@ import {
   orderBy 
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+
+const storage = getStorage();
 
 // ==========================================
 // 1. خدمات الكتب (Books Service)
@@ -74,6 +77,18 @@ export const subscribeToStudents = (callback: (students: any[]) => void) => {
   }, (err) => console.error("Error subscribing to students:", err));
 };
 
+//  المضافة: مزامنة ملف طالب محدد سحابياً (تحل خطأ البناء في Vercel)
+export const subscribeToStudentProfile = (studentId: string, callback: (student: any) => void) => {
+  const studentRef = doc(db, 'students', studentId);
+  return onSnapshot(studentRef, (snapshot) => {
+    if (snapshot.exists()) {
+      callback({ id: snapshot.id, ...snapshot.data() });
+    } else {
+      callback(null);
+    }
+  }, (err) => console.error("Error subscribing to student profile:", err));
+};
+
 export const saveStudentToFirestore = async (studentData: any) => {
   const studentId = studentData.id || `std_${Date.now()}`;
   const studentRef = doc(db, 'students', studentId);
@@ -86,8 +101,9 @@ export const saveStudentToFirestore = async (studentData: any) => {
   await setDoc(studentRef, payload, { merge: true });
 };
 
+//  تم التعديل: إزالة الـ doc المضاعفة التي كانت ستتسبب بخطأ تشغيلي
 export const deleteStudentFromFirestore = async (studentId: string) => {
-  await deleteDoc(doc(doc(db, 'students', studentId)));
+  await deleteDoc(doc(db, 'students', studentId));
 };
 
 // ==========================================
@@ -111,13 +127,10 @@ export const recordTransactionInFirestore = async (txData: any) => {
   }));
   await setDoc(txRef, payload, { merge: true });
 };
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
-const storage = getStorage();
-
-/**
- * دالة لرفع الملفات (PDF / صور) إلى Firebase Storage وإعادة رابط التحميل المباشر
- */
+// ==========================================
+// 5. رفع الملفات إلى Firebase Storage
+// ==========================================
 export const uploadFileToStorage = async (file: File, folderPath: string): Promise<string> => {
   const storageRef = ref(storage, `${folderPath}/${Date.now()}_${file.name}`);
   const snapshot = await uploadBytes(storageRef, file);
