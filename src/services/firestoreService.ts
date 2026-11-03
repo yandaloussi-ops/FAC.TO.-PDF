@@ -111,3 +111,15 @@ export const recordTransactionInFirestore = async (txData: any) => {
   }));
   await setDoc(txRef, payload, { merge: true });
 };
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+
+const storage = getStorage();
+
+/**
+ * دالة لرفع الملفات (PDF / صور) إلى Firebase Storage وإعادة رابط التحميل المباشر
+ */
+export const uploadFileToStorage = async (file: File, folderPath: string): Promise<string> => {
+  const storageRef = ref(storage, `${folderPath}/${Date.now()}_${file.name}`);
+  const snapshot = await uploadBytes(storageRef, file);
+  return await getDownloadURL(snapshot.ref);
+};
