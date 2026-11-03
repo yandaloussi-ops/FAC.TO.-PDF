@@ -1042,9 +1042,11 @@ export default function App() {
          {currentTab === 'admin' && (
         <div>
           {/* محتوى قسم الإدارة أو الصفحة */}
-        <AdminDashboard 
-  lang={lang} 
-  onToggleLang={handleToggleLang} 
+       <AdminDashboard
+  books={books}
+  professors={professors}
+  lang={lang}
+  onToggleLang={handleToggleLang}
 />
           <button
             onClick={() => setCurrentTab('home')}
