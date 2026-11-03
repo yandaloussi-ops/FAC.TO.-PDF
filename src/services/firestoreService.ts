@@ -77,7 +77,6 @@ export const subscribeToStudents = (callback: (students: any[]) => void) => {
   }, (err) => console.error("Error subscribing to students:", err));
 };
 
-//  المضافة: مزامنة ملف طالب محدد سحابياً (تحل خطأ البناء في Vercel)
 export const subscribeToStudentProfile = (studentId: string, callback: (student: any) => void) => {
   const studentRef = doc(db, 'students', studentId);
   return onSnapshot(studentRef, (snapshot) => {
@@ -101,7 +100,6 @@ export const saveStudentToFirestore = async (studentData: any) => {
   await setDoc(studentRef, payload, { merge: true });
 };
 
-//  تم التعديل: إزالة الـ doc المضاعفة التي كانت ستتسبب بخطأ تشغيلي
 export const deleteStudentFromFirestore = async (studentId: string) => {
   await deleteDoc(doc(db, 'students', studentId));
 };
