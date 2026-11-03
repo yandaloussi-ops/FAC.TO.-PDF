@@ -91,24 +91,7 @@ export default function App() {
 
   // Visitor mode pricing state (Requirement 9)
   const [isVisitorMode, setIsVisitorMode] = useState<boolean>(false);
-
-  // Sync state to localStorage whenever modified
-  useEffect(() => {
-    saveStoredBooks(books);
-  }, [books]);
-
-  useEffect(() => {
-    saveStoredProfessors(professors);
-  }, [professors]);
-
-  useEffect(() => {
-    saveStoredStudent(student);
-  }, [student]);
-
-  useEffect(() => {
-    saveStoredRegisteredStudents(registeredStudents);
-  }, [registeredStudents]);
-
+  
   // Professor Private Authentication State (Gatekeeping by Institutional Email)
   const [authenticatedProfessor, setAuthenticatedProfessor] = useState<Professor | null>(null);
 
