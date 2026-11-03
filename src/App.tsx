@@ -68,15 +68,21 @@ export default function App() {
     // تنظيف الذاكرة المحلية نهائياً لمنع قراءة البيانات القديمة
     localStorage.clear();
 
-    // جلب الكتب حياً ومباشرة من Firebase Firestore
+   // جلب الكتب والأساتذة حياً ومباشرة من Firebase Firestore
+  useEffect(() => {
     const unsubBooks = subscribeToBooks((data) => {
       setBooks(data || []);
     });
 
-    // جلب الأساتذة حياً ومباشرة من Firebase Firestore
     const unsubProfs = subscribeToProfessors((data) => {
       setProfessors(data || []);
     });
+
+    return () => {
+      unsubBooks();
+      unsubProfs();
+    };
+  }, []);
 
     return () => {
       unsubBooks();
