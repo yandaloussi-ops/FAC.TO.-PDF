@@ -113,8 +113,8 @@ export default function App() {
   const [authenticatedProfessor, setAuthenticatedProfessor] = useState<Professor | null>(null);
 
   // Commercial Payment & Admin Collection State
-  const [adminCommercialAccount, setAdminCommercialAccount] = useState<AdminCommercialAccount>(INITIAL_ADMIN_COMMERCIAL_ACCOUNT);
-  const [paymentOrders, setPaymentOrders] = useState<PaymentOrder[]>(INITIAL_PAYMENT_ORDERS);
+  const [adminCommercialAccount, setAdminCommercialAccount] = useState<AdminCommercialAccount | null>(null);
+  const [paymentOrders, setPaymentOrders] = useState<PaymentOrder[]>([]);
 
   // Direct Filter state for Digital Library Catalog
   const [catalogFacultyFilter, setCatalogFacultyFilter] = useState<string>('all');
