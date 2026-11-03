@@ -31,7 +31,7 @@ import {
   saveStoredCurrentStudent,
   PLATFORM_GMAIL,
 } from '../utils/storage';
-
+import { saveStudentToFirestore } from '../services/firestoreService';
 interface StudentAuthModalProps {
   isOpen: boolean;
   student: StudentProfile;
@@ -186,7 +186,8 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
       pinCode: registerPin.trim(),
       status: 'active',
     };
-
+// حفظ بيانات الطالب سحابياً في Firestore
+saveStudentToFirestore(newProfile);
     // Update list of students in storage
     const updatedStudents = existing
       ? students.map((s) => (s.id === existing.id ? newProfile : s))
