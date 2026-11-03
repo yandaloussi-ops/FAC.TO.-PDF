@@ -31,7 +31,8 @@ import {
   Share2,
 } from 'lucide-react';
 import { BookShareModal } from './BookShareModal';
-
+import { useEffect } from 'react';
+import { subscribeToStudentProfile } from '../services/firestoreService';
 interface StudentLibraryProps {
   student: StudentProfile;
   allBooks: Book[];
@@ -63,7 +64,19 @@ export const StudentLibrary: React.FC<StudentLibraryProps> = ({
   const [activeTab, setActiveTab] = useState<'books' | 'buy_new' | 'receipts'>('books');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [sharingBook, setSharingBook] = useState<Book | null>(null);
+// مزامنة ملف الطالب ومقتنياته سحابياً من Firestore
+  useEffect(() => {
+    if (!student?.id) return;
+    
+    const unsubscribe = subscribeToStudentProfile(student.id, (updatedProfile) => {
+      if (updatedProfile && updatedProfile.acquiredBookIds) {
+        // تحديث مقتنيات الطالب سحابياً فور تفعيل أي كتاب أو شائه
+        student.acquiredBookIds = updatedProfile.acquiredBookIds;
+      }
+    });
 
+    return () => unsubscribe();
+  }, [student?.id]);
   // Search & Filter for "Acheter de nouveaux cours"
   const [buySearch, setBuySearch] = useState('');
   const [buyFacultyFilter, setBuyFacultyFilter] = useState('all');
