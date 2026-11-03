@@ -62,6 +62,32 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
   onUpdateBookPdf,
   lang,
 }) => {
+  // تفعيل طبقات الوقاية وحظر التقاط الشاشات والنسخ
+  useEffect(() => {
+    const preventActions = (e: KeyboardEvent | MouseEvent) => {
+      // منع Ctrl+P (الطباعة) و Ctrl+S (الحفظ) و Ctrl+U (المصدر)
+      if (e instanceof KeyboardEvent && e.ctrlKey && ['p', 's', 'u'].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+      }
+      // منع أدوات التطوير DevTools (F12 أو Ctrl+Shift+I)
+      if (
+        e instanceof KeyboardEvent &&
+        (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'i'))
+      ) {
+        e.preventDefault();
+      }
+    };
+
+    const preventContextMenu = (e: MouseEvent) => e.preventDefault();
+
+    window.addEventListener('keydown', preventActions);
+    window.addEventListener('contextmenu', preventContextMenu);
+
+    return () => {
+      window.removeEventListener('keydown', preventActions);
+      window.removeEventListener('contextmenu', preventContextMenu);
+    };
+  }, []);
   const initialPage = student.bookProgress?.[book.id]?.currentPage || 1;
   const [currentPage, setCurrentPage] = useState<number>(initialPage);
   const [zoomLevel, setZoomLevel] = useState<number>(100);
