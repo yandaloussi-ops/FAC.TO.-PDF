@@ -28,26 +28,6 @@ import { Footer } from './components/Footer';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 import {
-  MOCK_BOOKS,
-  initialStudentProfile,
-  INITIAL_PROFESSORS,
-  INITIAL_DRM_LICENSES,
-  INITIAL_FACULTIES,
-  INITIAL_FACULTY_NEWS,
-  INITIAL_PROFESSOR_NOTICES,
-  INITIAL_ADMIN_COMMERCIAL_ACCOUNT,
-  INITIAL_PAYMENT_ORDERS,
-  INITIAL_PAYOUT_TRANSACTIONS
-} from './data/mockBooks';
-import {
-  getStoredBooks,
-  saveStoredBooks,
-  getStoredProfessors,
-  saveStoredProfessors,
-  getStoredStudent,
-  saveStoredStudent,
-  getStoredRegisteredStudents,
-  saveStoredRegisteredStudents,
   PLATFORM_GMAIL,
 } from './utils/storage';
 import {
