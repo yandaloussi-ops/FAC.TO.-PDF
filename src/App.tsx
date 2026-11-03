@@ -74,7 +74,14 @@ export default function App() {
 
   // Primary data state with persistent storage (Fix for Point 5)
   const [books, setBooks] = useState<Book[]>([]);
-  const [student, setStudent] = useState<StudentProfile | null>(null);
+  const [student, setStudent] = useState<StudentProfile>({
+  id: '',
+  fullName: '',
+  email: '',
+  faculty: '',
+  semester: '',
+  acquiredBookIds: []
+});
   const [registeredStudents, setRegisteredStudents] = useState<StudentProfile[]>([]);
   const [professors, setProfessors] = useState<any[]>([]);
   useEffect(() => {
