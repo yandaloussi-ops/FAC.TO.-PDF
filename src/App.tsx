@@ -83,11 +83,11 @@ export default function App() {
       unsubProfs();
     };
   }, []);
-  const [drmLicenses, setDrmLicenses] = useState<DRMAccessLicense[]>(INITIAL_DRM_LICENSES);
-  const [faculties, setFaculties] = useState<FacultyItem[]>(INITIAL_FACULTIES);
-  const [payoutTransactions, setPayoutTransactions] = useState<PayoutTransaction[]>(INITIAL_PAYOUT_TRANSACTIONS);
-  const [facultyNews, setFacultyNews] = useState<FacultyNews[]>(INITIAL_FACULTY_NEWS);
-  const [professorNotices, setProfessorNotices] = useState<ProfessorNotice[]>(INITIAL_PROFESSOR_NOTICES);
+  const [drmLicenses, setDrmLicenses] = useState<DRMAccessLicense[]>([]);
+  const [faculties, setFaculties] = useState<FacultyItem[]>([]);
+  const [payoutTransactions, setPayoutTransactions] = useState<PayoutTransaction[]>([]);
+  const [facultyNews, setFacultyNews] = useState<FacultyNews[]>([]);
+  const [professorNotices, setProfessorNotices] = useState<ProfessorNotice[]>([]);
 
   // Visitor mode pricing state (Requirement 9)
   const [isVisitorMode, setIsVisitorMode] = useState<boolean>(false);
