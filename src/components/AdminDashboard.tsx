@@ -1656,7 +1656,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                   <div className="text-[11px] text-stone-500 mb-2">📍 {univ.city}</div>
                   <div className="text-[10px] text-stone-400">
                     <span className="font-semibold text-stone-600">Établissements: </span>
-                    {univ.faculties.join(', ')}
+                   {(univ.faculties || []).join(', ')}
                   </div>
                 </div>
               ))}
