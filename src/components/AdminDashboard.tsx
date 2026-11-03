@@ -18,12 +18,10 @@ import {
 import { doc, updateDoc, collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 
-export const AdminDashboard: React.FC = () => {
+export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?: string; onToggleLang?: () => void }> = ({ books = [], professors = [], lang, onToggleLang }) => {
   const [activeTab, setActiveTab] = useState('livres');
   
   // Data States
-  const [books, setBooks] = useState<any[]>([]);
-  const [professors, setProfessors] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [drmCodes, setDrmCodes] = useState<any[]>([]);
