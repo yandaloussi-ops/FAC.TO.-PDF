@@ -69,7 +69,19 @@ import {
   Image as ImageIcon,
   AlertCircle,
 } from 'lucide-react';
-
+import { 
+  subscribeToBooks, 
+  subscribeToProfessors, 
+  subscribeToStudents, 
+  subscribeToTransactions,
+  saveBookToFirestore,
+  saveProfessorToFirestore,
+  saveStudentToFirestore,
+  recordTransactionInFirestore,
+  deleteBookFromFirestore,
+  deleteProfessorFromFirestore,
+  deleteStudentFromFirestore
+} from '../services/firestoreService';
 interface AdminDashboardProps {
   books: Book[];
   onAddBook: (newBook: Book) => void;
@@ -138,6 +150,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onOpenReader,
   lang: externalLang = 'ar',
 }) => {
+ // 1. حالات التخزين اللحظي للبيانات من Firestore
+  const [dbBooks, setBooks] = useState<any[]>([]);
+  const [dbProfessors, setProfessors] = useState<any[]>([]);
+  const [dbStudents, setStudents] = useState<any[]>([]);
+  const [dbTransactions, setTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  // 2. الاستماع اللحظي الدائم لجميع المجموعات من Firestore
+  useEffect(() => {
+    const unsubBooks = subscribeToBooks(setBooks);
+    const unsubProfs = subscribeToProfessors(setProfessors);
+    const unsubStudents = subscribeToStudents(setStudents);
+    const unsubTxs = subscribeToTransactions((txs) => {
+      setTransactions(txs);
+      setLoading(false);
+    });
+
+    return () => {
+      unsubBooks();
+      unsubProfs();
+      unsubStudents();
+      unsubTxs();
+    };
+  }, []);
   const [lang, setLang] = useState<'ar' | 'fr'>(externalLang);
 const safeAdminAccount = adminCommercialAccount;
   useEffect(() => {
