@@ -28,7 +28,27 @@ export const AdminDashboard: React.FC = () => {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [drmCodes, setDrmCodes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+// Real-time synchronization with Firestore
+  useEffect(() => {
+    const unsubBooks = subscribeToBooks((data) => {
+      setBooks(data);
+      setLoading(false);
+    });
 
+    const unsubProfessors = subscribeToProfessors((data) => {
+      setProfessors(data);
+    });
+
+    const unsubStudents = subscribeToStudents((data) => {
+      setStudents(data);
+    });
+
+    return () => {
+      unsubBooks();
+      unsubProfessors();
+      unsubStudents();
+    };
+  }, []);
   // Subscriptions
   useEffect(() => {
     const unsubBooks = subscribeToBooks((data) => setBooks(data || []));
