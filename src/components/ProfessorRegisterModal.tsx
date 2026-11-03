@@ -18,7 +18,7 @@ import {
   PlusCircle,
   Layers,
 } from 'lucide-react';
-
+import { saveProfessorToFirestore } from '../services/firestoreService';
 interface ProfessorRegisterModalProps {
   onRegisterProfessor: (newProf: Professor) => void;
   onClose: () => void;
@@ -185,7 +185,8 @@ export const ProfessorRegisterModal: React.FC<ProfessorRegisterModalProps> = ({
       pinCode: pinCode.trim(),
       status: 'active',
     };
-
+// حفظ بيانات الأستاذ سحابياً في Firestore
+saveProfessorToFirestore(newProf);
     onRegisterProfessor(newProf);
     setIsSuccess(true);
     setTimeout(() => {
