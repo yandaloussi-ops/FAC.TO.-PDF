@@ -13,7 +13,7 @@ import {
   SecurityShieldConfig,
 } from '../types';
 import {
-  UNIVERSITIES_DATABASE,
+  MOCK_BOOKS,
   INITIAL_SECURITY_CONFIG,
   INITIAL_SECURITY_AUDIT_LOGS,
 } from '../data/mockBooks';
@@ -203,13 +203,13 @@ useEffect(() => {
         }
       };
 
-      extractBooks(UNIVERSITIES_DATABASE);
+      extractBooks(MOCK_BOOKS);
 
       // إزالة التكرار إن وجد بناءً على الـ ID
       const uniqueBooks = Array.from(new Map(allBooks.map(b => [b.id, b])).values());
 
       if (uniqueBooks.length === 0) {
-        alert("لم يتم العثور على أسرار بيانات الكتب داخل UNIVERSITIES_DATABASE، يرجى مشاركة محتوى ملف mockBooks.ts");
+        alert("لم يتم العثور على أسرار بيانات الكتب داخل MOCK_BOOKS، يرجى مشاركة محتوى ملف mockBooks.ts");
         return;
       }
 
@@ -284,7 +284,7 @@ useEffect(() => {
   const [newBookTitle, setNewBookTitle] = useState('');
   const [newBookTitleAr, setNewBookTitleAr] = useState('');
   const [newBookUnivCode, setNewBookUnivCode] = useState<string>('UAE');
-  const [newBookAffiliatedFaculty, setNewBookAffiliatedFaculty] = useState<string>(UNIVERSITIES_DATABASE?.[0]?.faculties?.[0] || '');
+  const [newBookAffiliatedFaculty, setNewBookAffiliatedFaculty] = useState<string>(MOCK_BOOKS?.[0]?.faculties?.[0] || '');
   const [newBookFaculty, setNewBookFaculty] = useState<FacultyType>('droit');
   const [newBookSemester, setNewBookSemester] = useState<SemesterType>('S1');
   const [newBookSpecialty, setNewBookSpecialty] = useState('');
@@ -417,7 +417,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
     setIsSavingBook(true);
 
     try {
-      const chosenUniv = UNIVERSITIES_DATABASE.find((u) => u.code === newBookUnivCode) || UNIVERSITIES_DATABASE[0];
+      const chosenUniv = MOCK_BOOKS.find((u) => u.code === newBookUnivCode) || MOCK_BOOKS[0];
       const bookPrice = parseFloat(newBookPrice) || 0;
       const bookId = `book-${Date.now()}`;
 
@@ -713,7 +713,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
       encryption: 'AES-256-GCM',
       appletId: 'FAC-EN-PDF-MAROC',
       commercialAccount: safeAdminAccount,
-      universitiesCount: UNIVERSITIES_DATABASE.length,
+      universitiesCount: MOCK_BOOKS.length,
       booksCount: books?.length || 0,
       professorsCount: professors?.length || 0,
       drmLicensesCount: drmLicenses?.length || 0,
@@ -1610,7 +1610,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
               <span>{lang === 'fr' ? 'Base de Données Complète des Universités Marocaines' : 'قاعدة البيانات الرسمية للجامعات المغربية المعتمدة'}</span>
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-              {UNIVERSITIES_DATABASE.map((univ) => (
+              {MOCK_BOOKS.map((univ) => (
                 <div key={univ.id} className="p-3 bg-white border border-stone-200 rounded-lg text-xs">
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-stone-900">{univ.nameFr}</span>
@@ -2107,7 +2107,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                 <div className="space-y-2.5 text-xs text-stone-600 mb-4">
                   <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200 flex items-center justify-between">
                     <span>{lang === 'fr' ? 'Universités Enregistrées' : 'الجامعات المسجلة'}</span>
-                    <span className="font-bold font-mono text-stone-900">{UNIVERSITIES_DATABASE.length} universités</span>
+                    <span className="font-bold font-mono text-stone-900">{MOCK_BOOKS.length} universités</span>
                   </div>
 
                   <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200 flex items-center justify-between">
@@ -2396,14 +2396,14 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                     value={newBookUnivCode}
                     onChange={(e) => {
                       setNewBookUnivCode(e.target.value);
-                      const u = UNIVERSITIES_DATABASE.find((item) => item.code === e.target.value);
+                      const u = MOCK_BOOKS.find((item) => item.code === e.target.value);
                       if (u && u.faculties?.length || 0 > 0) {
                         setNewBookAffiliatedFaculty(u.faculties[0]);
                       }
                     }}
                     className="w-full p-2.5 border border-stone-300 rounded-lg text-xs"
                   >
-                    {UNIVERSITIES_DATABASE.map((u) => (
+                    {MOCK_BOOKS.map((u) => (
                       <option key={u.code} value={u.code}>
                         {u.code} - {lang === 'ar' ? u.nameAr : u.nameFr}
                       </option>
@@ -2420,7 +2420,7 @@ const totalPendingProfs = (professors || []).reduce((acc, p) => acc + p.pendingP
                     onChange={(e) => setNewBookAffiliatedFaculty(e.target.value)}
                     className="w-full p-2.5 border border-stone-300 rounded-lg text-xs"
                   >
-                    {(UNIVERSITIES_DATABASE.find((u) => u.code === newBookUnivCode) || UNIVERSITIES_DATABASE[0]).faculties.map((fac, idx) => (
+                    {(MOCK_BOOKS.find((u) => u.code === newBookUnivCode) || MOCK_BOOKS[0]).faculties.map((fac, idx) => (
                       <option key={idx} value={fac}>
                         {fac}
                       </option>
