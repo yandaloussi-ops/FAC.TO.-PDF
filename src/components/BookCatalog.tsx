@@ -71,30 +71,42 @@ export const BookCatalog: React.FC<BookCatalogProps> = ({
 
   // Filter books
   const filteredBooks = useMemo(() => {
-  return books.filter((book) => {
-    // 1. Search match مع حماية كاملة ضد الحقول الفارغة null/undefined
-    const query = searchQuery.toLowerCase().trim();
-    if (query) {
-      const matchTitle = (book.title || '').toLowerCase().includes(query);
-      const matchTitleAr = (book.titleAr || '').toLowerCase().includes(query);
-      const matchAuthor = (book.author || '').toLowerCase().includes(query);
-      const matchDesc = (book.description || '').toLowerCase().includes(query);
-      const matchUniversity = (book.university || '').toLowerCase().includes(query);
-      const matchFaculty = (book.facultyLabel || book.faculty || '').toLowerCase().includes(query);
-      
-      const matchSpecialty = (book.specialty || '').toLowerCase().includes(query) ||
-                             (book.specialtyAr || '').toLowerCase().includes(query);
+    return books.filter((book) => {
+      // 1. Search match
+      const query = searchQuery.toLowerCase().trim();
+      if (query) {
+        const matchTitle = (book.title || '').toLowerCase().includes(query);
+        const matchTitleAr = (book.titleAr || '').toLowerCase().includes(query);
+        const matchAuthor = (book.author || '').toLowerCase().includes(query);
+        const matchDesc = (book.description || '').toLowerCase().includes(query);
+        const matchUniversity = (book.university || '').toLowerCase().includes(query);
+        const matchFaculty = (book.facultyLabel || book.faculty || '').toLowerCase().includes(query);
+        const matchSpecialty = (book.specialty || '').toLowerCase().includes(query) || (book.specialtyAr || '').toLowerCase().includes(query);
+        const matchModule = (book.module || '').toLowerCase().includes(query) || (book.moduleAr || '').toLowerCase().includes(query);
+        const matchTag = Array.isArray(book.tags) && book.tags.some((t) => (t || '').toLowerCase().includes(query));
 
-      const matchModule = (book.module || '').toLowerCase().includes(query) ||
-                           (book.moduleAr || '').toLowerCase().includes(query);
-
-      const matchTag = Array.isArray(book.tags) && book.tags.some((t) => (t || '').toLowerCase().includes(query));
-
-      if (!matchTitle && !matchTitleAr && !matchAuthor && !matchDesc && !matchUniversity && !matchFaculty && !matchSpecialty && !matchModule && !matchTag) {
-        return false;
+        if (!matchTitle && !matchTitleAr && !matchAuthor && !matchDesc && !matchUniversity && !matchFaculty && !matchSpecialty && !matchModule && !matchTag) {
+          return false;
+        }
       }
-    }
 
+      // 2. الفلترة حسب الجامعة (إرجاع true دائماً إذا لم يتم الفرز الصارم)
+      if (selectedUniversity && selectedUniversity !== 'all') {
+        const bUniv = (book.university || '').toLowerCase();
+        const sUniv = selectedUniversity.toLowerCase();
+        if (!bUniv.includes(sUniv) && sUniv !== bUniv) return false;
+      }
+
+      // 3. الفلترة حسب الكلية
+      if (selectedFaculty && selectedFaculty !== 'all') {
+        const bFac = (book.faculty || book.facultyLabel || '').toLowerCase();
+        const sFac = selectedFaculty.toLowerCase();
+        if (!bFac.includes(sFac) && sFac !== bFac) return false;
+      }
+
+      return true;
+    });
+  }, [books, searchQuery, selectedUniversity, selectedFaculty]);
 
       // University filter
       if (selectedUnivFilter !== 'all') {
