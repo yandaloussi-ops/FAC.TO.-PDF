@@ -1,7 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Book, FacultyType } from '../types';
 import { FACULTY_CATEGORIES, SEMESTER_FILTERS, UNIVERSITIES_DATABASE } from '../data/mockBooks';
 import { BookCard } from './BookCard';
+import { collection, onSnapshot, query } from 'firebase/firestore';
+import { db } from '../firebase/config'; // تأكد من صحة مسار ملف إعدادات فايربيس في مشروعك
 import {
   Filter,
   Sparkles,
@@ -50,6 +52,37 @@ export const BookCatalog: React.FC<BookCatalogProps> = ({
   onToggleVisitorMode,
   lang,
 }) => {
+  // حالة محلية لتخزين الكتب القادمة من Firebase
+  const [dbBooks, setDbBooks] = useState<Book[]>([]);
+
+  // التحديث اللحظي المباشر من Firebase Firestore
+  useEffect(() => {
+    const q = query(collection(db, 'books'));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedBooks = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Book[];
+      
+      // إزالة أي تكرار بناءً على الـ id
+      const uniqueBooks = Array.from(
+        new Map(fetchedBooks.map((b) => [b.id, b])).values()
+      );
+      
+      setDbBooks(uniqueBooks);
+    }, (error) => {
+      console.error("خطأ في جلب البيانات المباشرة من Firebase:", error);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // دمج الكتب الممرّرة من Props مع كتب الفايربيس وتصفية المكرر تلقائياً
+  const allBooks = useMemo(() => {
+    const combined = [...(books || []), ...dbBooks];
+    return Array.from(new Map(combined.map((b) => [b.id, b])).values());
+  }, [books, dbBooks]);
   const [internalFaculty, setInternalFaculty] = useState<string>('all');
   const [internalSemester, setInternalSemester] = useState<string>('Tous');
   const [selectedUnivFilter, setSelectedUnivFilter] = useState<string>('all');
@@ -73,10 +106,10 @@ export const BookCatalog: React.FC<BookCatalogProps> = ({
 // Filter books
   const filteredBooks = useMemo(() => {
     // 1. حماية ضد المصفوفات الفارغة أو غير المعرفة عند البداية
-    if (!Array.isArray(books)) return [];
+ if (!Array.isArray(allBooks)) return [];
 
     // 2. تصفية الكتب
-    const result = books.filter((book) => {
+    const result = allBooks.filter((book) => {
       if (!book) return false;
 
       // أ. البحث النصي
@@ -134,8 +167,7 @@ export const BookCatalog: React.FC<BookCatalogProps> = ({
       if (sortBy === 'pages') return Number(b?.totalPages || 0) - Number(a?.totalPages || 0);
       return 0;
     });
-  }, [books, searchQuery, selectedUnivFilter, selectedFaculty, selectedSemester, onlyFree, sortBy]);
-
+ }, [allBooks, searchQuery, selectedUnivFilter, selectedFaculty, selectedSemester, onlyFree, sortBy]);
    // Sorting
     return [...filteredBooks].sort((a, b) => {
       if (sortBy === 'price_asc') return a.priceMAD - b.priceMAD;
