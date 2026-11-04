@@ -132,9 +132,8 @@ export const BookCatalog: React.FC<BookCatalogProps> = ({
       if (sortBy === 'price_desc') return b.priceMAD - a.priceMAD;
       if (sortBy === 'pages') return b.totalPages - a.totalPages;
       return 0;
-    });
-  }, [books, searchQuery, selectedFaculty, selectedSemester, selectedUnivFilter, onlyFree, sortBy]);
-
+   }
+}, [books, searchQuery, selectedFaculty, selectedSemester, selectedUnivFilter, onlyFree, sortBy]);
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Return to Home Bar */}
