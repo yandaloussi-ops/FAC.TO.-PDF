@@ -3,7 +3,7 @@ import { Book, FacultyType } from '../types';
 import { FACULTY_CATEGORIES, SEMESTER_FILTERS, UNIVERSITIES_DATABASE } from '../data/mockBooks';
 import { BookCard } from './BookCard';
 import { collection, onSnapshot, query } from 'firebase/firestore';
-import { db } from '../firebase/config'; // تأكد من صحة مسار ملف إعدادات فايربيس في مشروعك
+import { db } from '../firebase'; // تأكد من صحة مسار ملف إعدادات فايربيس في مشروعك
 import {
   Filter,
   Sparkles,
