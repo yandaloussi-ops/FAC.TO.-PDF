@@ -71,25 +71,32 @@ export const BookCatalog: React.FC<BookCatalogProps> = ({
 
   // Filter books
   const filteredBooks = useMemo(() => {
-    const list = books.filter((book) => {
-      // Search match
-      const query = searchQuery.toLowerCase().trim();
-      if (query) {
-        const matchTitle = book.title.toLowerCase().includes(query);
-        const matchTitleAr = book.titleAr?.toLowerCase().includes(query);
-        const matchAuthor = book.author.toLowerCase().includes(query);
-        const matchDesc = book.description.toLowerCase().includes(query);
-        const matchUniversity = book.university.toLowerCase().includes(query);
-        const matchFaculty = book.facultyLabel?.toLowerCase().includes(query) || book.faculty.toLowerCase().includes(query);
-        const matchSpecialty = (book.specialty && book.specialty.toLowerCase().includes(query)) ||
-          (book.specialtyAr && book.specialtyAr.toLowerCase().includes(query));
-        const matchModule = (book.module && book.module.toLowerCase().includes(query)) ||
-          (book.moduleAr && book.moduleAr.toLowerCase().includes(query));
-        const matchTag = book.tags.some((t) => t.toLowerCase().includes(query));
-        if (!matchTitle && !matchTitleAr && !matchAuthor && !matchDesc && !matchUniversity && !matchFaculty && !matchSpecialty && !matchModule && !matchTag) {
-          return false;
-        }
+  return books.filter((book) => {
+    // 1. Search match مع حماية كاملة ضد الحقول الفارغة null/undefined
+    const query = searchQuery.toLowerCase().trim();
+    if (query) {
+      const matchTitle = (book.title || '').toLowerCase().includes(query);
+      const matchTitleAr = (book.titleAr || '').toLowerCase().includes(query);
+      const matchAuthor = (book.author || '').toLowerCase().includes(query);
+      const matchDesc = (book.description || '').toLowerCase().includes(query);
+      const matchUniversity = (book.university || '').toLowerCase().includes(query);
+      const matchFaculty = (book.facultyLabel || book.faculty || '').toLowerCase().includes(query);
+      
+      const matchSpecialty = (book.specialty || '').toLowerCase().includes(query) ||
+                             (book.specialtyAr || '').toLowerCase().includes(query);
+
+      const matchModule = (book.module || '').toLowerCase().includes(query) ||
+                           (book.moduleAr || '').toLowerCase().includes(query);
+
+      const matchTag = Array.isArray(book.tags) && book.tags.some((t) => (t || '').toLowerCase().includes(query));
+
+      if (!matchTitle && !matchTitleAr && !matchAuthor && !matchDesc && !matchUniversity && !matchFaculty && !matchSpecialty && !matchModule && !matchTag) {
+        return false;
       }
+    }
+
+  return true; // إظهار باقي الكتب بسلام
+  });
 
       // University filter
       if (selectedUnivFilter !== 'all') {
