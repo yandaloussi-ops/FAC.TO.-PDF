@@ -68,7 +68,7 @@ export default function App() {
     // تنظيف الذاكرة المحلية نهائياً لمنع قراءة البيانات القديمة
 
    // جلب الكتب والأساتذة حياً ومباشرة من Firebase Firestore
-  useEffect(() => {
+ useEffect(() => {
     const unsubBooks = subscribeToBooks((data) => {
       setBooks(data || []);
     });
@@ -76,6 +76,11 @@ export default function App() {
     const unsubProfs = subscribeToProfessors((data) => {
       setProfessors(data || []);
     });
+
+    return () => {
+      unsubBooks();
+      unsubProfs();
+    };
   }, []);
   const [drmLicenses, setDrmLicenses] = useState<DRMAccessLicense[]>([]);
   const [faculties, setFaculties] = useState<FacultyItem[]>([]);
