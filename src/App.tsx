@@ -64,8 +64,11 @@ export default function App() {
 });
   const [registeredStudents, setRegisteredStudents] = useState<StudentProfile[]>([]);
   const [professors, setProfessors] = useState<any[]>([]);
-  useEffect(() => {
-    // تنظيف الذاكرة المحلية نهائياً لمنع قراءة البيانات القديمة
+  const [drmLicenses, setDrmLicenses] = useState<DRMAccessLicense[]>([]);
+  const [faculties, setFaculties] = useState<FacultyItem[]>([]);
+  const [payoutTransactions, setPayoutTransactions] = useState<PayoutTransaction[]>([]);
+  const [facultyNews, setFacultyNews] = useState<FacultyNews[]>([]);
+  const [professorNotices, setProfessorNotices] = useState<ProfessorNotice[]>([]);
 
    // جلب الكتب والأساتذة حياً ومباشرة من Firebase Firestore
  useEffect(() => {
@@ -82,12 +85,7 @@ export default function App() {
       unsubProfs();
     };
   }, []);
-  const [drmLicenses, setDrmLicenses] = useState<DRMAccessLicense[]>([]);
-  const [faculties, setFaculties] = useState<FacultyItem[]>([]);
-  const [payoutTransactions, setPayoutTransactions] = useState<PayoutTransaction[]>([]);
-  const [facultyNews, setFacultyNews] = useState<FacultyNews[]>([]);
-  const [professorNotices, setProfessorNotices] = useState<ProfessorNotice[]>([]);
-
+ 
   // Visitor mode pricing state (Requirement 9)
   const [isVisitorMode, setIsVisitorMode] = useState<boolean>(false);
   
