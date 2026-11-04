@@ -72,8 +72,14 @@ export const BookCatalog: React.FC<BookCatalogProps> = ({
 // Filter books
 // Filter books
   const filteredBooks = useMemo(() => {
-    return books.filter((book) => {
-      // 1. Search match
+    // 1. حماية ضد المصفوفات الفارغة أو غير المعرفة عند البداية
+    if (!Array.isArray(books)) return [];
+
+    // 2. تصفية الكتب
+    const result = books.filter((book) => {
+      if (!book) return false;
+
+      // أ. البحث النصي
       const query = searchQuery.toLowerCase().trim();
       if (query) {
         const matchTitle = (book.title || '').toLowerCase().includes(query);
@@ -91,33 +97,44 @@ export const BookCatalog: React.FC<BookCatalogProps> = ({
         }
       }
 
-      // 2. الفلترة حسب الجامعة
+      // ب. الفلترة حسب الجامعة
       if (selectedUnivFilter && selectedUnivFilter !== 'all') {
         const bUniv = (book.university || '').toLowerCase();
         const sUniv = selectedUnivFilter.toLowerCase();
         if (!bUniv.includes(sUniv) && sUniv !== bUniv) return false;
       }
 
-      // 3. الفلترة حسب الكلية
+      // ج. الفلترة حسب الكلية
       if (selectedFaculty && selectedFaculty !== 'all') {
         const bFac = (book.faculty || book.facultyLabel || '').toLowerCase();
         const sFac = selectedFaculty.toLowerCase();
         if (!bFac.includes(sFac) && sFac !== bFac) return false;
       }
 
-      // 4. الفلترة حسب الفصل الدراسي
+      // د. الفلترة حسب الفصل الدراسي
       if (selectedSemester && selectedSemester !== 'Tous' && book.semester !== selectedSemester) {
         return false;
       }
 
-      // 5. الفلترة حسب الكتب المجانية
+      // هـ. الفلترة حسب الكتب المجانية / الأثمنة المدعومة
       if (onlyFree && !book.isFree) {
         return false;
       }
 
       return true;
     });
-  }, [books, searchQuery, selectedUnivFilter, selectedFaculty, selectedSemester, onlyFree]);
+
+    // 3. الترتيب الآمن لمنع الـ Crash عند ضغط الفلاتر
+    return result.sort((a, b) => {
+      const priceA = Number(a?.priceMAD || 0);
+      const priceB = Number(b?.priceMAD || 0);
+
+      if (sortBy === 'price_asc') return priceA - priceB;
+      if (sortBy === 'price_desc') return priceB - priceA;
+      if (sortBy === 'pages') return Number(b?.totalPages || 0) - Number(a?.totalPages || 0);
+      return 0;
+    });
+  }, [books, searchQuery, selectedUnivFilter, selectedFaculty, selectedSemester, onlyFree, sortBy]);
 
    // Sorting
     return [...filteredBooks].sort((a, b) => {
