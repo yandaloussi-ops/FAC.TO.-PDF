@@ -69,7 +69,6 @@ export const BookCatalog: React.FC<BookCatalogProps> = ({
     else setInternalSemester(s);
   };
 
-  // Filter books
 // Filter books
 const filteredBooks = useMemo(() => {
   return books.filter((book) => {
@@ -89,7 +88,8 @@ const filteredBooks = useMemo(() => {
       if (!matchTitle && !matchTitleAr && !matchAuthor && !matchDesc && !matchUniversity && !matchFaculty && !matchSpecialty && !matchModule && !matchTag) {
         return false;
       }
-    
+    }
+
     // 2. الفلترة حسب الجامعة
     if (selectedUniversity && selectedUniversity !== 'all') {
       const bUniv = (book.university || '').toLowerCase();
@@ -97,7 +97,7 @@ const filteredBooks = useMemo(() => {
       if (!bUniv.includes(sUniv) && sUniv !== bUniv) return false;
     }
 
-    // 3. الفلترة حسب الكلية
+    // 3. الفلترة حسب الكلية (مرة واحدة فقط)
     if (selectedFaculty && selectedFaculty !== 'all') {
       const bFac = (book.faculty || book.facultyLabel || '').toLowerCase();
       const sFac = selectedFaculty.toLowerCase();
@@ -107,23 +107,6 @@ const filteredBooks = useMemo(() => {
     return true;
   });
 }, [books, searchQuery, selectedUniversity, selectedFaculty]);
-    // 3. الفلترة حسب الكلية
-    if (selectedFaculty && selectedFaculty !== 'all') {
-      const bFac = (book.faculty || book.facultyLabel || '').toLowerCase();
-      const sFac = selectedFaculty.toLowerCase();
-      if (!bFac.includes(sFac) && sFac !== bFac) return false;
-    }
-
-    return true;
-  });
-}, [books, searchQuery, selectedUniversity, selectedFaculty]);
-      // 3. الفلترة حسب الكلية
-      if (selectedFaculty && selectedFaculty !== 'all') {
-        const bFac = (book.faculty || book.facultyLabel || '').toLowerCase();
-        const sFac = selectedFaculty.toLowerCase();
-        if (!bFac.includes(sFac) && sFac !== bFac) return false;
-      }
-
       return true;
     });
   }, [books, searchQuery, selectedUniversity, selectedFaculty]);
