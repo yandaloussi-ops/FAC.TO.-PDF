@@ -107,25 +107,7 @@ const filteredBooks = useMemo(() => {
     return true;
   });
 }, [books, searchQuery, selectedUniversity, selectedFaculty]);
-      return true;
-    });
-  }, [books, searchQuery, selectedUniversity, selectedFaculty]);
-
-      // University filter
-      if (selectedUnivFilter !== 'all') {
-        const univ = UNIVERSITIES_DATABASE.find((u) => u.code === selectedUnivFilter);
-        if (univ) {
-          const matchCode = book.university.toLowerCase().includes(univ.code.toLowerCase());
-          const matchName = book.university.toLowerCase().includes(univ.nameFr.toLowerCase());
-          if (!matchCode && !matchName) return false;
-        }
-      }
-
-      // Faculty filter
-      if (selectedFaculty !== 'all' && book.faculty !== selectedFaculty) {
-        return false;
-      }
-
+     
       // Semester filter
       if (selectedSemester !== 'Tous' && book.semester !== selectedSemester) {
         return false;
