@@ -120,7 +120,7 @@ export const BookCatalog: React.FC<BookCatalogProps> = ({
   }, [books, searchQuery, selectedUnivFilter, selectedFaculty, selectedSemester, onlyFree]);
 
    // Sorting
-    return [...list].sort((a, b) => {
+    return [...filteredBooks].sort((a, b) => {
       if (sortBy === 'price_asc') return a.priceMAD - b.priceMAD;
       if (sortBy === 'price_desc') return b.priceMAD - a.priceMAD;
       if (sortBy === 'pages') return b.totalPages - a.totalPages;
