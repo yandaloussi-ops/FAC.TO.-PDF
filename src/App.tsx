@@ -66,7 +66,6 @@ export default function App() {
   const [professors, setProfessors] = useState<any[]>([]);
   useEffect(() => {
     // تنظيف الذاكرة المحلية نهائياً لمنع قراءة البيانات القديمة
-    localStorage.clear();
 
    // جلب الكتب والأساتذة حياً ومباشرة من Firebase Firestore
   useEffect(() => {
@@ -77,17 +76,6 @@ export default function App() {
     const unsubProfs = subscribeToProfessors((data) => {
       setProfessors(data || []);
     });
-
-    return () => {
-      unsubBooks();
-      unsubProfs();
-    };
-  }, []);
-
-    return () => {
-      unsubBooks();
-      unsubProfs();
-    };
   }, []);
   const [drmLicenses, setDrmLicenses] = useState<DRMAccessLicense[]>([]);
   const [faculties, setFaculties] = useState<FacultyItem[]>([]);
