@@ -97,29 +97,26 @@ const filteredBooks = useMemo(() => {
       if (!bUniv.includes(sUniv) && sUniv !== bUniv) return false;
     }
 
-    // 3. الفلترة حسب الكلية (مرة واحدة فقط)
+    // 3. الفلترة حسب الكلية
     if (selectedFaculty && selectedFaculty !== 'all') {
       const bFac = (book.faculty || book.facultyLabel || '').toLowerCase();
       const sFac = selectedFaculty.toLowerCase();
       if (!bFac.includes(sFac) && sFac !== bFac) return false;
     }
 
+    // 4. الفلترة حسب الفصل الدراسي
+    if (selectedSemester && selectedSemester !== 'Tous' && book.semester !== selectedSemester) {
+      return false;
+    }
+
+    // 5. الفلترة حسب الكتب المجانية
+    if (onlyFree && !book.isFree) {
+      return false;
+    }
+
     return true;
   });
-}, [books, searchQuery, selectedUniversity, selectedFaculty]);
-     
-      // Semester filter
-      if (selectedSemester !== 'Tous' && book.semester !== selectedSemester) {
-        return false;
-      }
-
-      // Free filter
-      if (onlyFree && !book.isFree) {
-        return false;
-      }
-
-      return true;
-    });
+}, [books, searchQuery, selectedUniversity, selectedFaculty, selectedSemester, onlyFree]);
 
    // Sorting
     return [...list].sort((a, b) => {
