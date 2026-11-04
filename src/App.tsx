@@ -503,7 +503,7 @@ export default function App() {
         studentId: student.studentId,
         paymentMethod: chosenMethod || 'Carte Bancaire CMI (3D-Secure)',
         paymentDetails: paymentDetails,
-        recipientAdminRib: adminCommercialAccount.bankRib,
+       recipientAdminRib: adminCommercialAccount?.bankRib || '',
         date: new Date().toISOString().replace('T', ' ').substring(0, 16),
         status: 'encaisse_succes',
         drmKeyGenerated: generatedLicenseCode,
@@ -1063,7 +1063,7 @@ export default function App() {
           book={selectedBookForDetails}
           student={student}
           isAcquired={student.acquiredBookIds.includes(selectedBookForDetails.id)}
-          adminRib={adminCommercialAccount.bankRib}
+          adminRib={adminCommercialAccount?.bankRib || ''}
           onClose={handleCloseDetails}
           onOpenReader={handleOpenReader}
           onAcquire={handleAcquireBook}
@@ -1212,7 +1212,7 @@ export default function App() {
         <MoroccanCheckoutModal
           book={selectedBookForCheckout}
           student={student}
-          adminRib={adminCommercialAccount.bankRib}
+          adminRib={adminCommercialAccount?.bankRib || ''}
           onClose={handleCloseCheckout}
          onSuccess={(method, details, drmCode) => {
           // فحص مرن لطريقة الدفع لضمان عدم تفعيل الكتاب لأي طلب كاش بلاس
