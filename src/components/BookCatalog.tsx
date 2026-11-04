@@ -95,8 +95,6 @@ export const BookCatalog: React.FC<BookCatalogProps> = ({
       }
     }
 
-  return true; // إظهار باقي الكتب بسلام
-  });
 
       // University filter
       if (selectedUnivFilter !== 'all') {
