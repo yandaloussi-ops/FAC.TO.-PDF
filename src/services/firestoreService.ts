@@ -8,20 +8,21 @@ import {
   query, 
   orderBy 
 } from 'firebase/firestore';
-import { db } from '../firebase';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-
-const storage = getStorage();
+import { db, storage } from '../firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 // ==========================================
 // 1. خدمات الكتب (Books Service)
 // ==========================================
 export const subscribeToBooks = (callback: (books: any[]) => void) => {
-  const q = query(collection(db, 'books'), orderBy('createdAt', 'desc'));
+  const q = query(collection(db, 'books'));
   return onSnapshot(q, (snapshot) => {
     const books = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     callback(books);
-  }, (err) => console.error("Error subscribing to books:", err));
+  }, (err) => {
+    console.error("Error subscribing to books:", err);
+    callback([]);
+  });
 };
 
 export const saveBookToFirestore = async (bookData: any) => {
@@ -43,11 +44,14 @@ export const deleteBookFromFirestore = async (bookId: string) => {
 // 2. خدمات الأساتذة (Professors Service)
 // ==========================================
 export const subscribeToProfessors = (callback: (profs: any[]) => void) => {
-  const q = query(collection(db, 'professors'), orderBy('createdAt', 'desc'));
+  const q = query(collection(db, 'professors'));
   return onSnapshot(q, (snapshot) => {
     const profs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     callback(profs);
-  }, (err) => console.error("Error subscribing to professors:", err));
+  }, (err) => {
+    console.error("Error subscribing to professors:", err);
+    callback([]);
+  });
 };
 
 export const saveProfessorToFirestore = async (profData: any) => {
