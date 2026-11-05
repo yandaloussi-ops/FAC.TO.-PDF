@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
 import { Professor, ProfessorNotice, Book, FacultyType, SemesterType } from '../types';
 import { UNIVERSITIES_DATABASE } from '../data/mockBooks';
 import {
@@ -149,6 +151,60 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
       b.author.includes(professor.fullName.replace('Pr. ', '')) ||
       b.author.includes(professor.fullName)
   );
+
+  // Real-time synchronization with Firestore (paymentOrders & payouts)
+  const [liveOrders, setLiveOrders] = useState<any[]>([]);
+  const [livePayouts, setLivePayouts] = useState<any[]>([]);
+
+  useEffect(() => {
+    // 1. مزامنة فورية مع طلبات الشراء في فايربيس (paymentOrders)
+    const unsubOrders = onSnapshot(collection(db, 'paymentOrders'), (snapshot) => {
+      const allOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const profNameClean = (professor?.fullName || '').replace('Pr. ', '').trim().toLowerCase();
+      
+      const myOrders = allOrders.filter(ord => {
+        const authorMatch = ord.bookAuthor && profNameClean && (
+          ord.bookAuthor.toLowerCase().includes(profNameClean) ||
+          profNameClean.includes(ord.bookAuthor.toLowerCase().replace('pr. ', '').trim())
+        );
+        const titleMatch = profBooks.some(b => 
+          (b.id && ord.bookId && b.id === ord.bookId) || 
+          (b.title && ord.bookTitle && b.title.trim().toLowerCase() === ord.bookTitle.trim().toLowerCase())
+        );
+        return authorMatch || titleMatch;
+      });
+      setLiveOrders(myOrders);
+    }, (err) => console.error("Error subscribing to prof orders:", err));
+
+    // 2. مزامنة فورية مع التحويلات البنكية المنفذة (payouts)
+    const unsubPayouts = onSnapshot(collection(db, 'payouts'), (snapshot) => {
+      const allPayouts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const profNameClean = (professor?.fullName || '').replace('Pr. ', '').trim().toLowerCase();
+      
+      const myPays = allPayouts.filter(pay => {
+        return (pay.professorId && professor?.id && pay.professorId === professor.id) ||
+               (pay.professorName && profNameClean && pay.professorName.toLowerCase().includes(profNameClean));
+      });
+      setLivePayouts(myPays);
+    }, (err) => console.error("Error subscribing to prof payouts:", err));
+
+    return () => {
+      unsubOrders();
+      unsubPayouts();
+    };
+  }, [professor?.fullName, professor?.id, profBooks]);
+
+  // الحسابات المالية الحية المتطابقة مع الإدارة
+  const effectiveSalesCount = liveOrders.length > 0 ? liveOrders.length : (professor.totalSalesCount || 0);
+  const effectiveGrossMAD = liveOrders.length > 0
+    ? liveOrders.reduce((sum, ord) => sum + (Number(ord.bookPrice) || 0), 0)
+    : (professor.totalEarningsMAD ? professor.totalEarningsMAD / 0.8 : effectiveSalesCount * 23);
+  const effectiveRoyaltiesMAD = liveOrders.length > 0
+    ? Math.round(effectiveGrossMAD * 0.80 * 100) / 100
+    : (professor.totalEarningsMAD || Math.round(effectiveSalesCount * 18.4 * 100) / 100);
+
+  const effectivePaidMAD = livePayouts.reduce((sum, pay) => sum + (Number(pay.amountMAD) || 0), (professor.paidAmountMAD || 0));
+  const effectivePendingPayoutMAD = Math.max(0, Math.round((effectiveRoyaltiesMAD - effectivePaidMAD) * 100) / 100);
 
   const handleSimulatedFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -667,7 +723,7 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
               </button>
             </div>
 
-            {/* Private Commercial & Financial Metrics Grid */}
+            {/* Private Commercial & Financial Metrics Grid (Synchronisé en direct avec Firestore) */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="p-4 bg-stone-50 border border-stone-200 rounded-2xl">
                 <div className="flex items-center justify-between text-xs text-stone-500 mb-1">
@@ -675,7 +731,7 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
                   <BookOpen className="w-4 h-4 text-amber-600" />
                 </div>
                 <div className="text-2xl font-black text-stone-900 font-mono tabular-nums">
-                  {professor.totalSalesCount}
+                  {effectiveSalesCount}
                 </div>
                 <div className="text-[11px] text-stone-500 mt-0.5">
                   {profBooks.length} {lang === 'fr' ? 'ouvrages in-app' : 'مقررات مسجلة'}
@@ -688,7 +744,7 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
                   <DollarSign className="w-4 h-4 text-emerald-600" />
                 </div>
                 <div className="text-2xl font-black text-emerald-700 font-mono tabular-nums">
-                  {professor.totalEarningsMAD} <span className="text-xs font-bold">DH</span>
+                  {effectiveRoyaltiesMAD.toFixed(2)} <span className="text-xs font-bold">DH</span>
                 </div>
                 <div className="text-[11px] text-emerald-700 mt-0.5 font-semibold">
                   {lang === 'fr' ? 'Cumul des redevances académiques' : 'إجمالي مستحقات حقوق التأليف'}
@@ -702,11 +758,11 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
                     <Landmark className="w-4 h-4 text-emerald-700" />
                   </div>
                   <div className="text-2xl font-black text-emerald-900 font-mono tabular-nums">
-                    {professor.pendingPayoutMAD} <span className="text-xs font-bold">DH</span>
+                    {effectivePendingPayoutMAD.toFixed(2)} <span className="text-xs font-bold">DH</span>
                   </div>
                 </div>
 
-                {professor.pendingPayoutMAD > 0 ? (
+                {effectivePendingPayoutMAD > 0 ? (
                   <button
                     onClick={handleRequestPayoutClick}
                     className="mt-3 w-full py-1.5 px-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl transition-all shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
@@ -715,11 +771,63 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
                   </button>
                 ) : (
                   <div className="text-[11px] text-emerald-700 mt-2 font-medium">
-                    {lang === 'fr' ? 'Tous vos virements ont été honorés' : 'تم تسوية كامل المستحقات السابقة'}
+                    {effectivePaidMAD > 0 
+                      ? (lang === 'fr' ? `Virements reçus : ${effectivePaidMAD.toFixed(2)} DH` : `المبالغ المحولة: ${effectivePaidMAD.toFixed(2)} درهم`)
+                      : (lang === 'fr' ? 'Tous vos virements ont été honorés' : 'تم تسوية كامل المستحقات السابقة')}
                   </div>
                 )}
               </div>
             </div>
+
+            {/* Liste des étudiants ayant acquis les polycopiés de l'enseignant */}
+            {liveOrders.length > 0 && (
+              <div className="p-4 bg-stone-50 border border-stone-200 rounded-2xl">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <h4 className="font-bold text-xs text-stone-900">
+                      {lang === 'fr' ? 'Étudiants Ayant Acquis vos Polycopiés' : 'الطلبة الذين اقتنوا مطبوعاتك مؤخراً'}
+                    </h4>
+                  </div>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                    {liveOrders.length} {lang === 'fr' ? 'acquisitions' : 'عمليات اقتناء'}
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-stone-200 text-stone-600">
+                        <th className="py-2 px-3">ÉTUDIANT</th>
+                        <th className="py-2 px-3">LIVRE</th>
+                        <th className="py-2 px-3">MONTANT LIVRE</th>
+                        <th className="py-2 px-3">DROIT AUTEUR (80%)</th>
+                        <th className="py-2 px-3">STATUT</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {liveOrders.map((ord) => (
+                        <tr key={ord.id} className="border-b border-stone-200/60 hover:bg-white/80">
+                          <td className="py-2 px-3 font-semibold text-stone-900">
+                            <div>{ord.studentName || 'Étudiant'}</div>
+                            <div className="text-[10px] text-stone-500">{ord.studentEmail || '-'}</div>
+                          </td>
+                          <td className="py-2 px-3 text-stone-800 font-medium">{ord.bookTitle || '-'}</td>
+                          <td className="py-2 px-3 font-mono font-bold text-stone-800">{ord.bookPrice || 23} DH</td>
+                          <td className="py-2 px-3 font-mono font-bold text-emerald-700">
+                            {(ord.authorPart ?? (Number(ord.bookPrice || 23) * 0.80)).toFixed(2)} DH
+                          </td>
+                          <td className="py-2 px-3">
+                            <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                              ✔ Validé
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* Bank RIB Coordination Section */}
             <div className="p-4 bg-stone-50 border border-stone-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
