@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Book, Key, Users, GraduationCap, Building2, Building, Receipt, ArrowLeftRight, 
-  Plus, ShieldCheck, RefreshCw, Trash2, Ban, CheckCircle, Upload
+  Plus, ShieldCheck, RefreshCw, Trash2, Ban, CheckCircle, Upload, Phone, ExternalLink,
+  CreditCard, CheckCircle2, AlertCircle, X, DollarSign, Wallet
 } from 'lucide-react';
 import { 
   subscribeToBooks, 
@@ -15,10 +16,10 @@ import {
   saveProfessorToFirestore,
   recordTransactionInFirestore
 } from '../services/firestoreService';
-import { doc, updateDoc, collection, onSnapshot } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc, collection, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
-export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?: string; onToggleLang?: () => void }> = ({ books = [], professors = [], lang, onToggleLang }) => {
+export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?: string; onToggleLang?: () => void }> = ({ books = [], professors = [], lang = 'fr', onToggleLang }) => {
   const [activeTab, setActiveTab] = useState('livres');
   
   // Data States
@@ -26,8 +27,16 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
   const [internalProfessors, setInternalProfessors] = useState<any[]>(professors);
   const [students, setStudents] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [paymentOrders, setPaymentOrders] = useState<any[]>([]);
   const [drmCodes, setDrmCodes] = useState<any[]>([]);
+  const [payouts, setPayouts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Virement Modal State
+  const [payoutModalProf, setPayoutModalProf] = useState<any | null>(null);
+  const [payoutAmount, setPayoutAmount] = useState<number>(0);
+  const [payoutRef, setPayoutRef] = useState<string>('');
+  const [isSubmittingPayout, setIsSubmittingPayout] = useState(false);
 
   // Sync with props if they change
   useEffect(() => {
@@ -57,74 +66,201 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
       setTransactions(data || []);
     });
 
-    // DRM Keys Subscription from Firestore (both drm_keys and redemptionCodes)
+    // Payment Orders Subscription (reçus et commandes des étudiants)
+    const unsubOrders = onSnapshot(collection(db, 'paymentOrders'), (snapshot) => {
+      const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setPaymentOrders(orders || []);
+    }, (err) => console.error("Error fetching payment orders:", err));
+
+    // DRM Keys Subscription
     const unsubDrm = onSnapshot(collection(db, 'drm_keys'), (snapshot) => {
       const codes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setDrmCodes(codes || []);
       setLoading(false);
     }, (err) => console.error("Error fetching DRM codes:", err));
 
+    // Payouts (Virements) Subscription
+    const unsubPayouts = onSnapshot(collection(db, 'payouts'), (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setPayouts(list || []);
+    }, (err) => console.error("Error fetching payouts:", err));
+
     return () => {
       unsubBooks();
       unsubProfessors();
       unsubStudents();
       unsubTx();
+      unsubOrders();
       unsubDrm();
+      unsubPayouts();
     };
   }, []);
 
   const displayBooks = internalBooks.length > 0 ? internalBooks : books;
   const displayProfessors = internalProfessors.length > 0 ? internalProfessors : professors;
 
-  // Financial Calculations
-  const totalGross = transactions.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
+  // Calculs Financiers Globaux (Dynamiques selon les commandes réelles)
+  const totalGrossFromOrders = paymentOrders.reduce((sum, ord) => sum + (Number(ord.bookPrice) || 0), 0);
+  const totalGrossFromTx = transactions.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
+  const totalGross = Math.max(totalGrossFromOrders, totalGrossFromTx);
   const platformPart = totalGross * 0.20;
   const authorsPart = totalGross * 0.80;
+  const totalPaidToProfessors = payouts.reduce((sum, p) => sum + (Number(p.amountMAD) || 0), 0);
+  const totalPendingPayouts = Math.max(0, authorsPart - totalPaidToProfessors);
 
-  // Administrative Actions
+  // Helper date formatter
+  const formatDate = (val: any) => {
+    if (!val) return '-';
+    if (val?.toDate) return val.toDate().toLocaleDateString('fr-FR');
+    if (val?.seconds) return new Date(val.seconds * 1000).toLocaleDateString('fr-FR');
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? '-' : d.toLocaleDateString('fr-FR');
+  };
+
+  // Helper pour calculer les statistiques d'un professeur en temps réel
+  const getProfStats = (p: any) => {
+    // Commandes liées à ce professeur par nom d'auteur ou titre
+    const profOrders = paymentOrders.filter(ord => {
+      const authorMatch = ord.bookAuthor && p.fullName && ord.bookAuthor.toLowerCase().includes(p.fullName.toLowerCase());
+      const titleMatch = ord.bookTitle && p.module && ord.bookTitle.toLowerCase().includes(p.module.toLowerCase());
+      const bookIdMatch = internalBooks.some(b => 
+        (b.id === ord.bookId || b.title === ord.bookTitle) && 
+        (b.author === p.fullName || b.professorId === p.id)
+      );
+      return authorMatch || titleMatch || bookIdMatch;
+    });
+
+    const realOrdersCount = profOrders.length;
+    const salesCount = realOrdersCount > 0 ? realOrdersCount : (p.totalSalesCount || 0);
+    const grossMAD = realOrdersCount > 0 
+      ? profOrders.reduce((sum, ord) => sum + (Number(ord.bookPrice) || 0), 0)
+      : (p.totalEarningsMAD ? p.totalEarningsMAD / 0.8 : salesCount * 23);
+    const royaltiesMAD = realOrdersCount > 0 ? (grossMAD * 0.8) : (p.totalEarningsMAD || (salesCount * 18.4));
+
+    // Virements déjà effectués pour ce professeur
+    const profPayouts = payouts.filter(pay => pay.professorId === p.id || pay.professorName === p.fullName);
+    const paidMAD = profPayouts.reduce((sum, pay) => sum + (Number(pay.amountMAD) || 0), (p.paidAmountMAD || 0));
+    const pendingMAD = Math.max(0, royaltiesMAD - paidMAD);
+
+    return { salesCount, grossMAD, royaltiesMAD, paidMAD, pendingMAD, profPayouts };
+  };
+
+  // 1. Bouton Action: Toggling User Status (Geler / Activer)
   const handleToggleUserStatus = async (collectionName: 'students' | 'professors', userId: string, currentStatus: string) => {
     try {
       const newStatus = currentStatus === 'suspended' ? 'active' : 'suspended';
       const userRef = doc(db, collectionName, userId);
       await updateDoc(userRef, { status: newStatus, updatedAt: new Date().toISOString() });
     } catch (err) {
-      alert("خطأ أثناء تحديث حالة الحساب");
+      console.error("Error toggling user status:", err);
+      alert("Erreur lors de la mise à jour du statut (تجميد / تنشيط).");
     }
   };
 
-  const handleDeleteUser = async (type: 'student' | 'prof' | 'book', id: string) => {
-    if (!window.confirm("هل أنت تأكد من إجراء عملية الحذف الإداري؟")) return;
+  // 2. Bouton Action: Toggling DRM Status (Révoquer / Réactiver)
+  const handleToggleDrmStatus = async (drmDocId: string, currentStatus: string) => {
     try {
-      if (type === 'student') await deleteStudentFromFirestore(id);
-      if (type === 'prof') await deleteProfessorFromFirestore(id);
-      if (type === 'book') await deleteBookFromFirestore(id);
+      const newStatus = currentStatus === 'revoked' ? 'active' : 'revoked';
+      const ref = doc(db, 'drm_keys', drmDocId);
+      await updateDoc(ref, { status: newStatus, updatedAt: new Date().toISOString() });
     } catch (err) {
-      alert("خطأ أثناء الحذف");
+      console.error("Error toggling DRM status:", err);
+      alert("Erreur lors de la mise à jour de la licence DRM.");
+    }
+  };
+
+  // 3. Bouton Action: Supprimer Définitivement (Corbeille / محو نهائي)
+  const handleDeleteItem = async (type: 'student' | 'prof' | 'book' | 'drm', id: string) => {
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer définitivement cet élément (سلة المهملات) ؟\nCette action est irréversible.")) return;
+    try {
+      if (type === 'student') await deleteDoc(doc(db, 'students', id));
+      if (type === 'prof') await deleteDoc(doc(db, 'professors', id));
+      if (type === 'book') await deleteDoc(doc(db, 'books', id));
+      if (type === 'drm') await deleteDoc(doc(db, 'drm_keys', id));
+    } catch (err) {
+      console.error("Error deleting item:", err);
+      alert("Erreur lors de la suppression de l'élément.");
+    }
+  };
+
+  // 4. Enregistrement d'un virement bancaire pour un professeur
+  const handleConfirmPayout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payoutModalProf) return;
+    if (payoutAmount <= 0) {
+      alert("Veuillez saisir un montant de virement valide.");
+      return;
+    }
+    if (!payoutRef.trim()) {
+      alert("Veuillez renseigner le numéro de référence du virement bancaire.");
+      return;
+    }
+
+    setIsSubmittingPayout(true);
+    try {
+      await addDoc(collection(db, 'payouts'), {
+        professorId: payoutModalProf.id,
+        professorName: payoutModalProf.fullName,
+        amountMAD: Number(payoutAmount),
+        bankRib: payoutModalProf.bankRib || '',
+        bankName: payoutModalProf.bankName || '',
+        reference: payoutRef.trim(),
+        date: new Date().toISOString(),
+        status: 'completed',
+        createdAt: serverTimestamp()
+      });
+
+      alert(`Virement de ${payoutAmount} DH enregistré avec succès pour ${payoutModalProf.fullName}!`);
+      setPayoutModalProf(null);
+      setPayoutAmount(0);
+      setPayoutRef('');
+    } catch (err) {
+      console.error("Error recording payout:", err);
+      alert("Erreur lors de l'enregistrement du virement.");
+    } finally {
+      setIsSubmittingPayout(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-stone-100 p-6 text-stone-800 font-sans dir-ltr">
+    <div className="min-h-screen bg-stone-100 p-4 sm:p-6 text-stone-800 font-sans dir-ltr">
+      
       {/* Top Header & Overview Cards */}
       <div className="mb-6 bg-white p-6 rounded-xl shadow-sm border border-stone-200">
-        <h1 className="text-2xl font-bold mb-4 text-stone-900">Tableau de Bord de Gestion FAC en PDF</h1>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-stone-900">Tableau de Bord de Gestion FAC en PDF</h1>
+            <p className="text-xs text-stone-500">Supervision centrale des droits DRM, finances, enseignants et étudiants.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-300 rounded-full text-xs font-bold">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Synchronisation Firestore Active
+            </span>
+          </div>
+        </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Metric Cards Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           <div className="p-4 bg-stone-50 border border-stone-200 rounded-lg">
             <span className="text-xs text-stone-500 font-medium">Souscriptions & Encaissements</span>
             <p className="text-xl font-bold text-emerald-700 mt-1">{totalGross.toFixed(2)} DH</p>
+            <span className="text-[10px] text-stone-400">Total brut perçu</span>
           </div>
           <div className="p-4 bg-stone-50 border border-stone-200 rounded-lg">
             <span className="text-xs text-stone-500 font-medium">Licences DRM Émises</span>
             <p className="text-xl font-bold text-amber-700 mt-1">{drmCodes.length}</p>
+            <span className="text-[10px] text-stone-400">{drmCodes.filter(c => c.status !== 'revoked').length} actives · {drmCodes.filter(c => c.status === 'revoked').length} révoquées</span>
           </div>
           <div className="p-4 bg-stone-50 border border-stone-200 rounded-lg">
-            <span className="text-xs text-stone-500 font-medium">Reversé aux Professeurs</span>
+            <span className="text-xs text-stone-500 font-medium">Reversé aux Auteurs (80%)</span>
             <p className="text-xl font-bold text-blue-700 mt-1">{authorsPart.toFixed(2)} DH</p>
+            <span className="text-[10px] text-stone-400">Déjà viré: {totalPaidToProfessors.toFixed(2)} DH</span>
           </div>
           <div className="p-4 bg-stone-50 border border-stone-200 rounded-lg">
-            <span className="text-xs text-stone-500 font-medium">Enseignants Partenaires</span>
-            <p className="text-xl font-bold text-stone-800 mt-1">{displayProfessors.length}</p>
+            <span className="text-xs text-stone-500 font-medium">Enseignants & Étudiants</span>
+            <p className="text-xl font-bold text-stone-800 mt-1">{displayProfessors.length} / {students.length}</p>
+            <span className="text-[10px] text-stone-400">{displayProfessors.length} Enseignants · {students.length} Étudiants</span>
           </div>
         </div>
       </div>
@@ -134,11 +270,11 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
         {[
           { id: 'livres', label: 'Livres & Polycopiés', count: displayBooks.length, icon: Book },
           { id: 'drm', label: 'Licences DRM & Accès', count: drmCodes.length, icon: Key },
+          { id: 'finance', label: 'Compte Commercial & Encaissement', count: Math.max(paymentOrders.length, transactions.length), icon: Building },
           { id: 'profs', label: 'Comptes des Enseignants', count: displayProfessors.length, icon: Users },
           { id: 'students', label: 'Comptes des Étudiants', count: students.length, icon: GraduationCap },
+          { id: 'virements', label: 'Relevé des Virements & Droits', count: payouts.length, icon: ArrowLeftRight },
           { id: 'faculties', label: 'Facultés & Départements', count: 0, icon: Building2 },
-          { id: 'finance', label: 'Compte Commercial & Encaissement', count: transactions.length, icon: Building },
-          { id: 'virements', label: 'Relevé des Virements', count: 0, icon: ArrowLeftRight }
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -146,15 +282,17 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold whitespace-nowrap transition ${
-                isActive 
-                  ? 'bg-stone-900 text-white shadow-md' 
-                  : 'bg-white text-stone-600 hover:bg-stone-200 border border-stone-200'
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                isActive
+                  ? 'bg-amber-400 text-stone-950 shadow-sm ring-1 ring-amber-500'
+                  : 'bg-white text-stone-600 hover:bg-stone-50 border border-stone-200'
               }`}
             >
               <Icon size={16} />
               <span>{tab.label}</span>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${isActive ? 'bg-stone-700 text-stone-200' : 'bg-stone-200 text-stone-700'}`}>
+              <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] ${
+                isActive ? 'bg-stone-900 text-white' : 'bg-stone-200 text-stone-700'
+              }`}>
                 {tab.count}
               </span>
             </button>
@@ -165,7 +303,9 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
       {/* Main Content Area */}
       <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-6">
         
+        {/* ========================================================= */}
         {/* Tab 1: Livres & Polycopiés */}
+        {/* ========================================================= */}
         {activeTab === 'livres' && (
           <div>
             <div className="flex justify-between items-center mb-4">
@@ -193,12 +333,16 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
                     displayBooks.map((b) => (
                       <tr key={b.id} className="border-b border-stone-100 hover:bg-stone-50">
                         <td className="p-3 font-semibold text-stone-900">{b.title}</td>
-                        <td className="p-3">{b.faculty || '—'} / S{b.semester || '1'}</td>
-                        <td className="p-3">{b.author || '—'}</td>
+                        <td className="p-3">{b.faculty || '-'} / S{b.semester || '1'}</td>
+                        <td className="p-3">{b.author || '-'}</td>
                         <td className="p-3 font-bold text-emerald-700">{b.priceMAD ?? b.price ?? 0} DH</td>
                         <td className="p-3"><span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[10px]">Actif</span></td>
                         <td className="p-3">
-                          <button onClick={() => handleDeleteUser('book', b.id)} className="text-red-600 hover:text-red-800">
+                          <button 
+                            onClick={() => handleDeleteItem('book', b.id)} 
+                            className="p-1.5 text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition-colors cursor-pointer" 
+                            title="Supprimer définitivement (سلة المهملات)"
+                          >
                             <Trash2 size={14} />
                           </button>
                         </td>
@@ -211,159 +355,465 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
           </div>
         )}
 
-        {/* Tab 2: Licences DRM & Accès */}
+        {/* ========================================================= */}
+        {/* Tab 2: Licences DRM & Accès (WITH REVOKE & TRASH BUTTONS) */}
+        {/* ========================================================= */}
         {activeTab === 'drm' && (
           <div>
             <div className="flex justify-between items-center mb-4">
               <div>
                 <h2 className="text-lg font-bold">Gestion des Licences & Codes d'Accès DRM</h2>
-                <p className="text-xs text-stone-500">Générez des codes individuels pour les étudiants.</p>
+                <p className="text-xs text-stone-500">Contrôlez les accès étudiants : bouton de tjemid (إبطال) et bouton corbeille (محو نهائي).</p>
               </div>
             </div>
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-stone-200 bg-stone-50 text-stone-600">
-                  <th className="p-3">CLÉ DRM</th>
-                  <th className="p-3">LIVRE ASSIGNÉ</th>
-                  <th className="p-3">ÉTUDIANT BÉNÉFICIAIRE</th>
-                  <th className="p-3">DATE D'ÉMISSION</th>
-                  <th className="p-3">ÉTAT</th>
-                </tr>
-              </thead>
-              <tbody>
-                {drmCodes.length === 0 ? (
-                  <tr><td colSpan={5} className="p-4 text-center text-stone-400">Aucune licence DRM générée</td></tr>
-                ) : (
-                  drmCodes.map((c) => (
-                    <tr key={c.id} className="border-b border-stone-100 hover:bg-stone-50">
-                      <td className="p-3 font-mono text-amber-700 font-bold">{c.code || c.id}</td>
-                      <td className="p-3">{c.bookTitle || '—'}</td>
-                      <td className="p-3">{c.studentEmail || 'Non attribué'}</td>
-                      <td className="p-3">{c.createdAt ? new Date(c.createdAt).toLocaleDateString() : '—'}</td>
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] ${c.used ? 'bg-stone-200 text-stone-700' : 'bg-emerald-100 text-emerald-800'}`}>
-                          {c.used ? 'Utilisé' : 'Disponible'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-stone-200 bg-stone-50 text-stone-600">
+                    <th className="p-3">CLÉ DRM</th>
+                    <th className="p-3">LIVRE ASSIGNÉ</th>
+                    <th className="p-3">ÉTUDIANT BÉNÉFICIAIRE</th>
+                    <th className="p-3">DATE D'ÉMISSION</th>
+                    <th className="p-3">ÉTAT</th>
+                    <th className="p-3">ACTIONS (CONTRÔLE)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {drmCodes.length === 0 ? (
+                    <tr><td colSpan={6} className="p-4 text-center text-stone-400">Aucune licence DRM enregistrée</td></tr>
+                  ) : (
+                    drmCodes.map((c) => {
+                      const isRevoked = c.status === 'revoked';
+                      const keyDisplay = c.key || c.code || c.id;
+                      return (
+                        <tr key={c.id} className={`border-b border-stone-100 hover:bg-stone-50 ${isRevoked ? 'bg-rose-50/40' : ''}`}>
+                          <td className="p-3 font-mono text-amber-700 font-bold select-all">{keyDisplay}</td>
+                          <td className="p-3 font-medium">{c.bookTitle || '-'}</td>
+                          <td className="p-3">
+                            <div className="font-semibold">{c.studentName || 'Étudiant'}</div>
+                            <div className="text-[11px] text-stone-500">{c.studentEmail || '-'}</div>
+                            {c.studentPhone && <div className="text-[10px] text-emerald-600 font-mono">{c.studentPhone}</div>}
+                          </td>
+                          <td className="p-3 text-stone-600">{formatDate(c.createdAt)}</td>
+                          <td className="p-3">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              isRevoked ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {isRevoked ? 'Révoqué (معطل/مجمد)' : 'Actif (نشط)'}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <div className="flex items-center gap-1.5">
+                              {/* Bouton 1: Révoquer / Réactiver (تجميد / إعادة التنشيط) */}
+                              <button
+                                onClick={() => handleToggleDrmStatus(c.id, c.status || 'active')}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer ${
+                                  isRevoked
+                                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                                    : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
+                                }`}
+                                title={isRevoked ? 'Réactiver la licence' : 'Révoquer la licence (bloquer l\'accès)'}
+                              >
+                                {isRevoked ? (
+                                  <>
+                                    <CheckCircle size={12} />
+                                    <span>Réactiver</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Ban size={12} />
+                                    <span>Révoquer</span>
+                                  </>
+                                )}
+                              </button>
+
+                              {/* WhatsApp Contact */}
+                              {c.studentPhone && (
+                                <a
+                                  href={`https://wa.me/${c.studentPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
+                                    `Bonjour ${c.studentName || ''}, concernant votre commande du livre ${c.bookTitle || ''} sur FAC en PDF:`
+                                  )}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="p-1.5 text-emerald-600 hover:bg-emerald-50 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
+                                  title="Contacter sur WhatsApp"
+                                >
+                                  <Phone size={14} />
+                                </a>
+                              )}
+
+                              {/* Bouton 2: Supprimer Définitivement (سلة المهملات 🗑️) */}
+                              <button
+                                onClick={() => handleDeleteItem('drm', c.id)}
+                                className="p-1.5 text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                                title="Supprimer définitivement (سلة المهملات)"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
-        {/* Tab 3: Comptes Enseignants */}
+        {/* ========================================================= */}
+        {/* Tab 3: Compte Commercial & Encaissement Admin */}
+        {/* ========================================================= */}
+        {activeTab === 'finance' && (
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h2 className="text-lg font-bold">Journal des Règlements & Droits Académiques</h2>
+                <p className="text-xs text-stone-500">Visualisez les reçus de paiement et vérifiez la conformité de chaque souscription.</p>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-stone-200 bg-stone-50 text-stone-600">
+                    <th className="p-3">RÉF. COMMANDE</th>
+                    <th className="p-3">ÉTUDIANT PAYEUR</th>
+                    <th className="p-3">LIVRE SOUSCRIT</th>
+                    <th className="p-3">MONTANT</th>
+                    <th className="p-3">RÉPARTITION (20% / 80%)</th>
+                    <th className="p-3">REÇU DE PAIEMENT</th>
+                    <th className="p-3">ACTION</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paymentOrders.length === 0 && transactions.length === 0 ? (
+                    <tr><td colSpan={7} className="p-4 text-center text-stone-400">Aucune commande enregistrée</td></tr>
+                  ) : (
+                    paymentOrders.map((ord) => {
+                      const price = Number(ord.bookPrice) || 23;
+                      const authorPartMAD = ord.authorPart ?? (price * 0.80);
+                      const platformPartMAD = ord.platformPart ?? (price * 0.20);
+                      return (
+                        <tr key={ord.id} className="border-b border-stone-100 hover:bg-stone-50">
+                          <td className="p-3 font-mono font-bold text-stone-900 select-all">{ord.id.slice(0, 10)}</td>
+                          <td className="p-3">
+                            <div className="font-semibold text-stone-900">{ord.studentName || 'Étudiant'}</div>
+                            <div className="text-[11px] text-stone-500">{ord.studentEmail || '-'}</div>
+                            {ord.studentPhone && <div className="text-[10px] text-emerald-600 font-mono">{ord.studentPhone}</div>}
+                          </td>
+                          <td className="p-3 font-medium text-stone-800">{ord.bookTitle || '-'}</td>
+                          <td className="p-3 font-bold text-emerald-700">{price} DH</td>
+                          <td className="p-3 text-[11px]">
+                            <div className="text-blue-700 font-medium">Auteur: {authorPartMAD.toFixed(1)} DH</div>
+                            <div className="text-stone-500">Plateforme: {platformPartMAD.toFixed(1)} DH</div>
+                          </td>
+                          <td className="p-3">
+                            {ord.receiptUrl ? (
+                              <a
+                                href={ord.receiptUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold transition-colors shadow-2xs"
+                              >
+                                <ExternalLink size={12} />
+                                <span>Voir le reçu 🧾</span>
+                              </a>
+                            ) : (
+                              <span className="text-stone-400">Aucun reçu</span>
+                            )}
+                          </td>
+                          <td className="p-3">
+                            {ord.studentPhone && (
+                              <a
+                                href={`https://wa.me/${ord.studentPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
+                                  `Bonjour ${ord.studentName || ''}, concernant votre reçu pour le livre ${ord.bookTitle || ''}:`
+                                )}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300 rounded-lg text-xs font-bold transition-colors"
+                              >
+                                <Phone size={12} />
+                                <span>WhatsApp</span>
+                              </a>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* Tab 4: Comptes des Enseignants (WITH GELER & CORBEILLE) */}
+        {/* ========================================================= */}
         {activeTab === 'profs' && (
           <div>
             <div className="flex justify-between items-center mb-4">
               <div>
                 <h2 className="text-lg font-bold">Comptes des Enseignants & Droits d'Auteur</h2>
-                <p className="text-xs text-stone-500">Gérez les coordonnées bancaires (RIB) et les droits d'auteur.</p>
+                <p className="text-xs text-stone-500">Gérez les comptes des professeurs : bouton de tjemid (تجميد الحساب) et bouton corbeille (سلة المهملات).</p>
               </div>
             </div>
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-stone-200 bg-stone-50 text-stone-600">
-                  <th className="p-3">NOM DE L'ENSEIGNANT</th>
-                  <th className="p-3">RIB BANCAIRE & AGENCE</th>
-                  <th className="p-3">TAUX DROITS</th>
-                  <th className="p-3">STATUT</th>
-                  <th className="p-3">ACTIONS ADMINISTRATIVES</th>
-                </tr>
-              </thead>
-              <tbody>
-                {displayProfessors.length === 0 ? (
-                  <tr><td colSpan={5} className="p-4 text-center text-stone-400">Aucun enseignant inscrit</td></tr>
-                ) : (
-                  displayProfessors.map((p) => (
-                    <tr key={p.id} className="border-b border-stone-100 hover:bg-stone-50">
-                      <td className="p-3 font-semibold">{p.fullName || p.email}</td>
-                      <td className="p-3 font-mono">{p.rib || 'Non renseigné'}</td>
-                      <td className="p-3 font-bold text-stone-700">80%</td>
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] ${p.status === 'suspended' ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'}`}>
-                          {p.status === 'suspended' ? 'Suspendu' : 'Actif'}
-                        </span>
-                      </td>
-                      <td className="p-3 flex gap-2">
-                        <button 
-                          onClick={() => handleToggleUserStatus('professors', p.id, p.status)} 
-                          className="px-2 py-1 bg-amber-500 text-white rounded text-[10px] hover:bg-amber-600"
-                        >
-                          {p.status === 'suspended' ? 'Réactiver' : 'Suspendre'}
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteUser('prof', p.id)} 
-                          className="px-2 py-1 bg-red-600 text-white rounded text-[10px] hover:bg-red-700"
-                        >
-                          Supprimer
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-stone-200 bg-stone-50 text-stone-600">
+                    <th className="p-3">ENSEIGNANT</th>
+                    <th className="p-3">ÉTABLISSEMENT & RIB</th>
+                    <th className="p-3">VENTES CUMULÉES</th>
+                    <th className="p-3">DROITS DUS (80%)</th>
+                    <th className="p-3">RESTE À PAYER</th>
+                    <th className="p-3">STATUT</th>
+                    <th className="p-3">ACTIONS (CONTRÔLE)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayProfessors.map((p) => {
+                    const stats = getProfStats(p);
+                    const isSuspended = p.status === 'suspended';
+                    return (
+                      <tr key={p.id} className={`border-b border-stone-100 hover:bg-stone-50 ${isSuspended ? 'bg-amber-50/40' : ''}`}>
+                        <td className="p-3">
+                          <div className="font-bold text-stone-900">{p.fullName}</div>
+                          <div className="text-[11px] text-stone-500">{p.email}</div>
+                        </td>
+                        <td className="p-3">
+                          <div className="text-stone-800">{p.faculty || '-'}</div>
+                          <div className="text-[10px] font-mono text-stone-500">{p.bankRib || 'RIB non renseigné'}</div>
+                        </td>
+                        <td className="p-3 font-mono font-bold text-stone-900">{stats.salesCount} ventes</td>
+                        <td className="p-3 font-bold text-blue-700">{stats.royaltiesMAD.toFixed(2)} DH</td>
+                        <td className="p-3 font-bold text-amber-700">{stats.pendingMAD.toFixed(2)} DH</td>
+                        <td className="p-3">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                            isSuspended ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                          }`}>
+                            {isSuspended ? 'Suspendu (مجمد)' : 'Actif (نشط)'}
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-1.5">
+                            {/* Bouton 1: Geler / Activer le compte de l'enseignant */}
+                            <button
+                              onClick={() => handleToggleUserStatus('professors', p.id, p.status || 'active')}
+                              className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer ${
+                                isSuspended
+                                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                                  : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300'
+                              }`}
+                              title={isSuspended ? 'Activer le compte enseignant' : 'Geler le compte enseignant (تجميد)'}
+                            >
+                              {isSuspended ? <CheckCircle size={12} /> : <Ban size={12} />}
+                              <span>{isSuspended ? 'Activer' : 'Geler'}</span>
+                            </button>
+
+                            {/* Bouton Virement Rapide */}
+                            <button
+                              onClick={() => {
+                                setPayoutModalProf(p);
+                                setPayoutAmount(Math.round(stats.pendingMAD));
+                              }}
+                              className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
+                              title="Effectuer un virement bancaire"
+                            >
+                              <DollarSign size={12} />
+                              <span>Virer</span>
+                            </button>
+
+                            {/* Bouton 2: Supprimer Définitivement (سلة المهملات 🗑️) */}
+                            <button 
+                              onClick={() => handleDeleteItem('prof', p.id)} 
+                              className="p-1.5 text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition-colors cursor-pointer" 
+                              title="Supprimer définitivement (سلة المهملات)"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
-        {/* Tab 4: Comptes Étudiants */}
+        {/* ========================================================= */}
+        {/* Tab 5: Comptes des Étudiants (WITH GELER & CORBEILLE) */}
+        {/* ========================================================= */}
         {activeTab === 'students' && (
           <div>
             <div className="flex justify-between items-center mb-4">
               <div>
-                <h2 className="text-lg font-bold">Gestion des Comptes Étudiants</h2>
-                <p className="text-xs text-stone-500">Contrôle des inscriptions, consultation des cours et suspension par l'administration.</p>
+                <h2 className="text-lg font-bold">Comptes des Étudiants Inscrits</h2>
+                <p className="text-xs text-stone-500">Gérez les profils étudiants : bouton de tjemid (تجميد الحساب) et bouton corbeille (سلة المهملات).</p>
               </div>
             </div>
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-stone-200 bg-stone-50 text-stone-600">
-                  <th className="p-3">ÉTUDIANT & IDENTIFIANT</th>
-                  <th className="p-3">FACULTÉ & UNIVERSITÉ</th>
-                  <th className="p-3">LIVRES ACQUIS</th>
-                  <th className="p-3">STATUT</th>
-                  <th className="p-3">ACTIONS ADMINISTRATIVES</th>
-                </tr>
-              </thead>
-              <tbody>
-                {students.length === 0 ? (
-                  <tr><td colSpan={5} className="p-4 text-center text-stone-400">Aucun étudiant inscrit</td></tr>
-                ) : (
-                  students.map((s) => (
-                    <tr key={s.id} className="border-b border-stone-100 hover:bg-stone-50">
-                      <td className="p-3 font-semibold">{s.fullName || s.email}</td>
-                      <td className="p-3">{s.university || '—'}</td>
-                      <td className="p-3 font-bold text-stone-800">{(s.acquiredBooks || []).length}</td>
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] ${s.status === 'suspended' ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'}`}>
-                          {s.status === 'suspended' ? 'Suspendu' : 'Actif'}
-                        </span>
-                      </td>
-                      <td className="p-3 flex gap-2">
-                        <button 
-                          onClick={() => handleToggleUserStatus('students', s.id, s.status)} 
-                          className="px-2 py-1 bg-amber-500 text-white rounded text-[10px] hover:bg-amber-600"
-                        >
-                          {s.status === 'suspended' ? 'Réactiver' : 'Suspendre'}
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteUser('student', s.id)} 
-                          className="px-2 py-1 bg-red-600 text-white rounded text-[10px] hover:bg-red-700"
-                        >
-                          Supprimer
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-stone-200 bg-stone-50 text-stone-600">
+                    <th className="p-3">ÉTUDIANT</th>
+                    <th className="p-3">EMAIL ACADÉMIQUE</th>
+                    <th className="p-3">TÉLÉPHONE / WHATSAPP</th>
+                    <th className="p-3">LIVRES DÉBLOQUÉS</th>
+                    <th className="p-3">STATUT</th>
+                    <th className="p-3">ACTIONS (CONTRÔLE)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {students.length === 0 ? (
+                    <tr><td colSpan={6} className="p-4 text-center text-stone-400">Aucun profil étudiant enregistré</td></tr>
+                  ) : (
+                    students.map((s) => {
+                      const isSuspended = s.status === 'suspended';
+                      return (
+                        <tr key={s.id} className={`border-b border-stone-100 hover:bg-stone-50 ${isSuspended ? 'bg-amber-50/40' : ''}`}>
+                          <td className="p-3 font-semibold text-stone-900">{s.fullName || s.name || 'Étudiant'}</td>
+                          <td className="p-3 font-mono text-stone-700">{s.email || '-'}</td>
+                          <td className="p-3">
+                            {s.phone ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono text-emerald-700">{s.phone}</span>
+                                <a
+                                  href={`https://wa.me/${s.phone.replace(/[^0-9]/g, '')}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-emerald-600 hover:text-emerald-800"
+                                  title="Contacter sur WhatsApp"
+                                >
+                                  <Phone size={12} />
+                                </a>
+                              </div>
+                            ) : (
+                              <span className="text-stone-400">-</span>
+                            )}
+                          </td>
+                          <td className="p-3 font-mono font-bold text-amber-700">{s.acquiredBookIds?.length || 0} livres</td>
+                          <td className="p-3">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              isSuspended ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {isSuspended ? 'Suspendu (مجمد)' : 'Actif (نشط)'}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <div className="flex items-center gap-1.5">
+                              {/* Bouton 1: Geler / Débloquer l'étudiant */}
+                              <button
+                                onClick={() => handleToggleUserStatus('students', s.id, s.status || 'active')}
+                                className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer ${
+                                  isSuspended
+                                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                                    : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300'
+                                }`}
+                                title={isSuspended ? 'Activer le compte étudiant' : 'Geler le compte étudiant (تجميد)'}
+                              >
+                                {isSuspended ? <CheckCircle size={12} /> : <Ban size={12} />}
+                                <span>{isSuspended ? 'Activer' : 'Geler'}</span>
+                              </button>
+
+                              {/* Bouton 2: Supprimer Définitivement (سلة المهملات 🗑️) */}
+                              <button 
+                                onClick={() => handleDeleteItem('student', s.id)} 
+                                className="p-1.5 text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition-colors cursor-pointer" 
+                                title="Supprimer définitivement (سلة المهملات)"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
-        {/* Tab 5: Facultés & Départements (Crash Protected) */}
+        {/* ========================================================= */}
+        {/* Tab 6: Relevé des Virements & Droits d'Auteur (FINANCES RÉELLES) */}
+        {/* ========================================================= */}
+        {activeTab === 'virements' && (
+          <div>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <div>
+                <h2 className="text-lg font-bold">Relevé des Virements Bancaires aux Enseignants</h2>
+                <p className="text-xs text-stone-500">Gestion des redevances d'auteurs (80%) et suivi des ordres de virement exécutés.</p>
+              </div>
+            </div>
+
+            {/* Financial Summary */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <span className="text-xs text-blue-700 font-bold">Total Droits Dus (80%)</span>
+                <p className="text-xl font-bold text-blue-900 mt-1">{authorsPart.toFixed(2)} DH</p>
+              </div>
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                <span className="text-xs text-emerald-700 font-bold">Total Déjà Viré</span>
+                <p className="text-xl font-bold text-emerald-900 mt-1">{totalPaidToProfessors.toFixed(2)} DH</p>
+              </div>
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <span className="text-xs text-amber-700 font-bold">Reliquat Restant à Virer</span>
+                <p className="text-xl font-bold text-amber-900 mt-1">{totalPendingPayouts.toFixed(2)} DH</p>
+              </div>
+            </div>
+
+            {/* Tableau de l'historique des virements */}
+            <h3 className="font-bold text-sm text-stone-800 mb-3">Historique des ordres de virement enregistrés</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-stone-200 bg-stone-50 text-stone-600">
+                    <th className="p-3">DATE DU VIREMENT</th>
+                    <th className="p-3">ENSEIGNANT BÉNÉFICIAIRE</th>
+                    <th className="p-3">MONTANT VIRÉ</th>
+                    <th className="p-3">RÉFÉRENCE BANCAIRE</th>
+                    <th className="p-3">RIB / BANQUE</th>
+                    <th className="p-3">STATUT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payouts.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-6 text-center text-stone-400">
+                        Aucun virement enregistré pour le moment. Utilisez le bouton "Virer" dans l'onglet Enseignants pour consigner un virement.
+                      </td>
+                    </tr>
+                  ) : (
+                    payouts.map((pay) => (
+                      <tr key={pay.id} className="border-b border-stone-100 hover:bg-stone-50">
+                        <td className="p-3 font-mono text-stone-700">{formatDate(pay.date || pay.createdAt)}</td>
+                        <td className="p-3 font-semibold text-stone-900">{pay.professorName}</td>
+                        <td className="p-3 font-bold text-emerald-700 font-mono">+{Number(pay.amountMAD).toFixed(2)} DH</td>
+                        <td className="p-3 font-mono text-amber-800 font-bold">{pay.reference || '-'}</td>
+                        <td className="p-3 font-mono text-stone-500">{pay.bankRib || '-'}</td>
+                        <td className="p-3">
+                          <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                            <CheckCircle2 size={10} />
+                            Effectué
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* Tab 7: Facultés & Départements */}
+        {/* ========================================================= */}
         {activeTab === 'faculties' && (
           <div>
             <h2 className="text-lg font-bold mb-2">Facultés & Établissements Partenaires</h2>
@@ -375,52 +825,91 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
           </div>
         )}
 
-        {/* Tab 6: Compte Commercial & Encaissement Admin */}
-        {activeTab === 'finance' && (
-          <div>
-            <h2 className="text-lg font-bold mb-2">Journal des Règlements & Droits Académiques</h2>
-            <p className="text-xs text-stone-500 mb-4">Chaque règlement effectué par un étudiant valide sa licence nominative.</p>
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-stone-200 bg-stone-50 text-stone-600">
-                  <th className="p-3">RÉF. COMMANDE</th>
-                  <th className="p-3">ÉTUDIANT PAYEUR</th>
-                  <th className="p-3">MODE PAIEMENT</th>
-                  <th className="p-3">MONTANT ENCAISSÉ</th>
-                  <th className="p-3">STATUT</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.length === 0 ? (
-                  <tr><td colSpan={5} className="p-4 text-center text-stone-400">Aucune transaction enregistrée</td></tr>
-                ) : (
-                  transactions.map((t) => (
-                    <tr key={t.id} className="border-b border-stone-100 hover:bg-stone-50">
-                      <td className="p-3 font-mono font-bold text-stone-900">{t.id}</td>
-                      <td className="p-3">{t.studentEmail || '—'}</td>
-                      <td className="p-3">{t.paymentMethod || 'Carte / CashPlus'}</td>
-                      <td className="p-3 font-bold text-emerald-700">{t.amount || 0} DH</td>
-                      <td className="p-3"><span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[10px]">Confirmé</span></td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* Tab 7: Relevé des Virements */}
-        {activeTab === 'virements' && (
-          <div>
-            <h2 className="text-lg font-bold mb-2">Historique des Virements Bancaires aux Enseignants</h2>
-            <p className="text-xs text-stone-500 mb-4">Reçus officiels de reversement des redevances avec numéros de référence bancaire.</p>
-            <div className="p-8 text-center text-stone-400 text-xs">
-              Aucun virement à afficher pour le moment.
-            </div>
-          </div>
-        )}
-
       </div>
+
+      {/* ========================================================= */}
+      {/* Modal: Enregistrer un Virement Bancaire */}
+      {/* ========================================================= */}
+      {payoutModalProf && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-stone-200 animate-in fade-in zoom-in-95">
+            <div className="flex justify-between items-center mb-4">
+              <div className="flex items-center gap-2 text-stone-900">
+                <CreditCard className="text-blue-600" size={20} />
+                <h3 className="font-bold text-base">Enregistrer un Virement Bancaire</h3>
+              </div>
+              <button 
+                onClick={() => setPayoutModalProf(null)}
+                className="text-stone-400 hover:text-stone-600 p-1 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmPayout} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-stone-600 font-semibold mb-1">Enseignant Bénéficiaire</label>
+                <div className="p-3 bg-stone-50 border border-stone-200 rounded-lg font-semibold text-stone-900">
+                  {payoutModalProf.fullName} ({payoutModalProf.faculty || 'Université'})
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-stone-600 font-semibold mb-1">Coordonnées Bancaires (RIB)</label>
+                <div className="p-3 bg-stone-50 border border-stone-200 rounded-lg font-mono text-stone-700 select-all">
+                  {payoutModalProf.bankRib || 'RIB non renseigné'}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-stone-600 font-semibold mb-1">Montant à Virer (en Dirhams)</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="1"
+                    step="any"
+                    required
+                    value={payoutAmount}
+                    onChange={(e) => setPayoutAmount(Number(e.target.value))}
+                    className="w-full p-2.5 pl-3 pr-10 border border-stone-300 rounded-lg text-sm font-bold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="absolute right-3 top-3 font-bold text-stone-400">DH</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-stone-600 font-semibold mb-1">Numéro de Référence du Virement (Bancaire)</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: VIR-2026-ATTIJARI-98214"
+                  value={payoutRef}
+                  onChange={(e) => setPayoutRef(e.target.value)}
+                  className="w-full p-2.5 border border-stone-300 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setPayoutModalProf(null)}
+                  className="flex-1 py-2.5 border border-stone-300 hover:bg-stone-50 text-stone-700 font-bold rounded-lg transition-colors cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingPayout}
+                  className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
+                >
+                  {isSubmittingPayout ? 'Enregistrement...' : 'Valider le Virement'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

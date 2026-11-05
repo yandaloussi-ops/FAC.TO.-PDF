@@ -1,7 +1,7 @@
 import emailjs from '@emailjs/browser';
 import React, { useState } from 'react';
 import { db, storage } from '../firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, setDoc, arrayUnion } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { X, Upload, CheckCircle2, Loader2, CreditCard, Phone, Key, ShieldCheck, ExternalLink } from 'lucide-react';
 
@@ -96,11 +96,17 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
         createdAt: serverTimestamp(),
       });
 
-      // 5. حفظ الطلب في Firestore (paymentOrders)
+      // 5. حفظ الطلب في Firestore (paymentOrders) مع تقسيم المستحقات
+      const authorCut = Math.round(actualPrice * 0.80 * 100) / 100;
+      const platformCut = Math.round(actualPrice * 0.20 * 100) / 100;
+
       await addDoc(collection(db, 'paymentOrders'), {
         bookId: book?.id || '',
         bookTitle: book?.title || '',
+        bookAuthor: (book as any)?.author || '',
         bookPrice: actualPrice,
+        authorPart: authorCut,
+        platformPart: platformCut,
         studentName: studentName.trim(),
         studentEmail: studentEmail.trim().toLowerCase(),
         studentPhone: studentPhone.trim(),
@@ -109,6 +115,25 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
         status: 'active',
         createdAt: serverTimestamp(),
       });
+
+      // 5.5. الربط الآلي الشامل لحساب الطالب في Firestore (Comptes Étudiants)
+      try {
+        const cleanEmail = studentEmail.trim().toLowerCase();
+        const studentDocId = cleanEmail.replace(/[^a-z0-9]/g, '_');
+        await setDoc(doc(db, 'students', studentDocId), {
+          id: studentDocId,
+          fullName: studentName.trim(),
+          name: studentName.trim(),
+          email: cleanEmail,
+          phone: studentPhone.trim(),
+          status: 'active',
+          acquiredBookIds: arrayUnion(book.id),
+          updatedAt: serverTimestamp(),
+          createdAt: serverTimestamp(),
+        }, { merge: true });
+      } catch (stdErr) {
+        console.warn('Error auto-syncing student profile:', stdErr);
+      }
 
       // 6. تجهيز رسالة الواتساب الموجهة إلى الإدارة (طلب الشراء دون ذكر المفتاح فيها)
       const adminWhatsApp = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_WHATSAPP_NUMBER) || (import.meta as any)?.env?.VITE_WHATSAPP_NUMBER || '212645987915';
