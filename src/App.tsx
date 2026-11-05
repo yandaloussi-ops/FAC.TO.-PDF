@@ -1,11 +1,19 @@
-import UploadBook from './UploadBook';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import React, { useState, useEffect } from 'react';
-import { subscribeToBooks, subscribeToProfessors } from './services/firestoreService';
+import {
+  subscribeToBooks,
+  subscribeToProfessors,
+  saveBookToFirestore,
+  deleteBookFromFirestore,
+  saveProfessorToFirestore,
+  deleteProfessorFromFirestore,
+  saveStudentToFirestore,
+  recordTransactionInFirestore,
+} from './services/firestoreService';
 import { Navbar } from './components/Navbar';
 import { HomePage } from './components/HomePage';
 import { Hero } from './components/Hero';
@@ -28,6 +36,31 @@ import { Footer } from './components/Footer';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 import {
+  MOCK_BOOKS,
+  initialStudentProfile,
+  INITIAL_PROFESSORS,
+  INITIAL_DRM_LICENSES,
+  INITIAL_FACULTIES,
+  INITIAL_FACULTY_NEWS,
+  INITIAL_PROFESSOR_NOTICES,
+  INITIAL_ADMIN_COMMERCIAL_ACCOUNT,
+  INITIAL_PAYMENT_ORDERS,
+  INITIAL_PAYOUT_TRANSACTIONS,
+} from './data/mockBooks';
+
+import {
+  getStoredBooks,
+  saveStoredBooks,
+  getStoredProfessors,
+  saveStoredProfessors,
+  getStoredStudent,
+  saveStoredStudent,
+  getStoredRegisteredStudents,
+  saveStoredRegisteredStudents,
+  getStoredAdminAccount,
+  saveStoredAdminAccount,
+  getStoredPaymentOrders,
+  saveStoredPaymentOrders,
   PLATFORM_GMAIL,
 } from './utils/storage';
 import {
@@ -52,32 +85,70 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<'home' | 'catalog' | 'library' | 'drm-info' | 'admin'>('home');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Primary data state with persistent storage (Fix for Point 5)
-  const [books, setBooks] = useState<Book[]>([]);
-  const [student, setStudent] = useState<StudentProfile>({
-  id: '',
-  fullName: '',
-  email: '',
-  faculty: '',
-  semester: '',
-  acquiredBookIds: []
-});
-  const [registeredStudents, setRegisteredStudents] = useState<StudentProfile[]>([]);
-  const [professors, setProfessors] = useState<any[]>([]);
-  const [drmLicenses, setDrmLicenses] = useState<DRMAccessLicense[]>([]);
-  const [faculties, setFaculties] = useState<FacultyItem[]>([]);
-  const [payoutTransactions, setPayoutTransactions] = useState<PayoutTransaction[]>([]);
-  const [facultyNews, setFacultyNews] = useState<FacultyNews[]>([]);
-  const [professorNotices, setProfessorNotices] = useState<ProfessorNotice[]>([]);
+  // Primary data state with persistent storage and fallback
+  const [books, setBooks] = useState<Book[]>(() => {
+    const stored = getStoredBooks();
+    return stored && stored.length > 0 ? stored : MOCK_BOOKS;
+  });
+  const [student, setStudent] = useState<StudentProfile>(() => getStoredStudent());
+  const [registeredStudents, setRegisteredStudents] = useState<StudentProfile[]>(() => getStoredRegisteredStudents());
+  const [professors, setProfessors] = useState<Professor[]>(() => {
+    const stored = getStoredProfessors();
+    return stored && stored.length > 0 ? stored : INITIAL_PROFESSORS;
+  });
+  const [drmLicenses, setDrmLicenses] = useState<DRMAccessLicense[]>(INITIAL_DRM_LICENSES);
+  const [faculties, setFaculties] = useState<FacultyItem[]>(INITIAL_FACULTIES);
+  const [payoutTransactions, setPayoutTransactions] = useState<PayoutTransaction[]>(INITIAL_PAYOUT_TRANSACTIONS);
+  const [facultyNews, setFacultyNews] = useState<FacultyNews[]>(INITIAL_FACULTY_NEWS);
+  const [professorNotices, setProfessorNotices] = useState<ProfessorNotice[]>(INITIAL_PROFESSOR_NOTICES);
 
-   // جلب الكتب والأساتذة حياً ومباشرة من Firebase Firestore
- useEffect(() => {
+  // Commercial Payment & Admin Collection State
+  const [adminCommercialAccount, setAdminCommercialAccount] = useState<AdminCommercialAccount>(() => {
+    const stored = getStoredAdminAccount();
+    return stored || INITIAL_ADMIN_COMMERCIAL_ACCOUNT;
+  });
+  const [paymentOrders, setPaymentOrders] = useState<PaymentOrder[]>(() => {
+    const stored = getStoredPaymentOrders();
+    return stored && stored.length > 0 ? stored : INITIAL_PAYMENT_ORDERS;
+  });
+
+  // Sync state to localStorage whenever modified
+  useEffect(() => {
+    saveStoredBooks(books);
+  }, [books]);
+
+  useEffect(() => {
+    saveStoredProfessors(professors);
+  }, [professors]);
+
+  useEffect(() => {
+    saveStoredStudent(student);
+  }, [student]);
+
+  useEffect(() => {
+    saveStoredRegisteredStudents(registeredStudents);
+  }, [registeredStudents]);
+
+  useEffect(() => {
+    saveStoredAdminAccount(adminCommercialAccount);
+  }, [adminCommercialAccount]);
+
+  useEffect(() => {
+    saveStoredPaymentOrders(paymentOrders);
+  }, [paymentOrders]);
+
+  // Real-time synchronization from Firebase Firestore
+  useEffect(() => {
     const unsubBooks = subscribeToBooks((data) => {
-      setBooks(data || []);
+      if (data && data.length > 0) {
+        setBooks(data);
+      }
     });
 
     const unsubProfs = subscribeToProfessors((data) => {
-      setProfessors(data || []);
+      if (data && data.length > 0) {
+        setProfessors(data);
+      }
     });
 
     return () => {
@@ -85,7 +156,7 @@ export default function App() {
       unsubProfs();
     };
   }, []);
- 
+
   // Visitor mode pricing state (Requirement 9)
   const [isVisitorMode, setIsVisitorMode] = useState<boolean>(false);
   
@@ -648,13 +719,18 @@ export default function App() {
   };
 
   // ADMIN: Add Book
-  const handleAddBook = (newBook: Book) => {
+  const handleAddBook = async (newBook: Book) => {
     setBooks((prev) => [newBook, ...prev]);
     setFaculties((prev) =>
       prev.map((f) =>
         f.code.toLowerCase().includes(newBook.faculty) ? { ...f, bookCount: f.bookCount + 1 } : f
       )
     );
+    try {
+      await saveBookToFirestore(newBook);
+    } catch (e) {
+      console.warn('Firestore book save fallback:', e);
+    }
     showToast(
       lang === 'fr' ? 'Nouveau Livre Ajouté' : 'تم إضافة الكتاب بنجاح',
       lang === 'fr'
@@ -673,13 +749,15 @@ export default function App() {
     setBooks((prev) =>
       prev.map((b) => {
         if (b.id === bookId) {
-          return {
+          const updated = {
             ...b,
             hasPdf: true,
             pdfUrl,
             totalPages: totalPages && totalPages > 0 ? totalPages : b.totalPages,
             pdfFileName: fileName || b.pdfFileName,
           };
+          saveBookToFirestore(updated).catch(() => {});
+          return updated;
         }
         return b;
       })
@@ -703,7 +781,14 @@ export default function App() {
   // ADMIN: Update Book Price
   const handleUpdateBookPrice = (bookId: string, newPrice: number) => {
     setBooks((prev) =>
-      prev.map((b) => (b.id === bookId ? { ...b, priceMAD: newPrice, isFree: newPrice === 0 } : b))
+      prev.map((b) => {
+        if (b.id === bookId) {
+          const updated = { ...b, priceMAD: newPrice, isFree: newPrice === 0 };
+          saveBookToFirestore(updated).catch(() => {});
+          return updated;
+        }
+        return b;
+      })
     );
     showToast(
       lang === 'fr' ? 'Tarif Mis à Jour' : 'تم تعديل السعر',
@@ -714,8 +799,13 @@ export default function App() {
   };
 
   // ADMIN: Delete Book
-  const handleDeleteBook = (bookId: string) => {
+  const handleDeleteBook = async (bookId: string) => {
     setBooks((prev) => prev.filter((b) => b.id !== bookId));
+    try {
+      await deleteBookFromFirestore(bookId);
+    } catch (e) {
+      console.warn('Firestore book delete fallback:', e);
+    }
     showToast(
       lang === 'fr' ? 'Livre Retiré' : 'تم حذف المقرر',
       lang === 'fr' ? 'Le cours a été supprimé du catalogue.' : 'تم إزالة الكتاب من المنصة.'
@@ -723,10 +813,15 @@ export default function App() {
   };
 
   // ADMIN or SELF-REGISTRATION: Add Professor
-  const handleAddProfessor = (newProf: Professor) => {
+  const handleAddProfessor = async (newProf: Professor) => {
     setProfessors((prev) => [newProf, ...prev]);
     // Automatically log in the newly registered professor!
     setAuthenticatedProfessor(newProf);
+    try {
+      await saveProfessorToFirestore(newProf);
+    } catch (e) {
+      console.warn('Firestore prof save fallback:', e);
+    }
     showToast(
       lang === 'fr' ? 'Compte Enseignant Enregistré & Connecté' : 'تم تفعيل الحساب وتسجيل الدخول',
       lang === 'fr'
@@ -736,11 +831,16 @@ export default function App() {
   };
 
   // ADMIN: Delete Professor Account (Requirement 7 & 8)
-  const handleDeleteProfessor = (profId: string) => {
+  const handleDeleteProfessor = async (profId: string) => {
     setProfessors((prev) => prev.filter((p) => p.id !== profId));
     if (authenticatedProfessor && authenticatedProfessor.id === profId) {
       setAuthenticatedProfessor(null);
       setIsProfessorPortalOpen(false);
+    }
+    try {
+      await deleteProfessorFromFirestore(profId);
+    } catch (e) {
+      console.warn('Firestore prof delete fallback:', e);
     }
     showToast(
       lang === 'fr' ? 'Compte Enseignant Supprimé' : 'تم حذف وإلغاء حساب الأستاذ',
@@ -1214,16 +1314,10 @@ export default function App() {
           student={student}
           adminRib={adminCommercialAccount?.bankRib || ''}
           onClose={handleCloseCheckout}
-         onSuccess={(method, details, drmCode) => {
-          // فحص مرن لطريقة الدفع لضمان عدم تفعيل الكتاب لأي طلب كاش بلاس
-          const isManualPayment = method && method.toLowerCase().includes('cash');
-
-          if (!isManualPayment) {
+          onSuccess={(method, details, drmCode) => {
             handleAcquireBook(selectedBookForCheckout.id, method, details, drmCode);
-          }
-          
-          handleCloseCheckout();
-        }}
+            handleCloseCheckout();
+          }}
          
           lang={lang}
         />
