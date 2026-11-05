@@ -27,6 +27,9 @@ import {
   FileText,
   CheckCircle2,
   Trash2,
+  Columns,
+  Maximize2,
+  Sliders,
 } from 'lucide-react';
 import { setupDrmProtection } from '../utils/drmShield';
 
@@ -62,14 +65,12 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
   onUpdateBookPdf,
   lang,
 }) => {
-  // تفعيل طبقات الوقاية وحظر التقاط الشاشات والنسخ
+  // Global anti-tamper keyboard shortcuts
   useEffect(() => {
     const preventActions = (e: KeyboardEvent | MouseEvent) => {
-      // منع Ctrl+P (الطباعة) و Ctrl+S (الحفظ) و Ctrl+U (المصدر)
       if (e instanceof KeyboardEvent && e.ctrlKey && ['p', 's', 'u'].includes(e.key.toLowerCase())) {
         e.preventDefault();
       }
-      // منع أدوات التطوير DevTools (F12 أو Ctrl+Shift+I)
       if (
         e instanceof KeyboardEvent &&
         (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'i'))
@@ -78,34 +79,33 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
       }
     };
 
-    const preventContextMenu = (e: MouseEvent) => e.preventDefault();
-
     window.addEventListener('keydown', preventActions);
-    window.addEventListener('contextmenu', preventContextMenu);
-
-    return () => {
-      window.removeEventListener('keydown', preventActions);
-      window.removeEventListener('contextmenu', preventContextMenu);
-    };
+    return () => window.removeEventListener('keydown', preventActions);
   }, []);
+
+  // Reading state
   const initialPage = student.bookProgress?.[book.id]?.currentPage || 1;
   const [currentPage, setCurrentPage] = useState<number>(initialPage);
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [themeMode, setThemeMode] = useState<'light' | 'sepia' | 'dark'>('light');
+  const [readerWidth, setReaderWidth] = useState<'standard' | 'wide' | 'full'>('wide');
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'toc' | 'notes' | 'bookmarks'>('toc');
+  const [isBannerDismissed, setIsBannerDismissed] = useState<boolean>(false);
 
   // Study timer state
   const [timerActive, setTimerActive] = useState<boolean>(false);
   const [secondsRemaining, setSecondsRemaining] = useState<number>(25 * 60);
 
-  // DRM & Anti-Screen Capture states
-  const [isShieldActive, setIsShieldActive] = useState<boolean>(false);
-  const [activeAlert, setActiveAlert] = useState<DRMSecurityAlert | null>(null);
-  const [watermarkPos, setWatermarkPos] = useState({ x: 25, y: 35 });
+  // Notes and Bookmarks
   const [notes, setNotes] = useState<UserNote[]>([]);
-  const [newNoteText, setNewNoteText] = useState('');
   const [bookmarks, setBookmarks] = useState<UserBookmark[]>([]);
+  const [newNoteText, setNewNoteText] = useState<string>('');
+
+  // DRM & Security Alerts
+  const [activeAlert, setActiveAlert] = useState<DRMSecurityAlert | null>(null);
+  const [isShieldActive, setIsShieldActive] = useState<boolean>(false);
+  const [watermarkPos, setWatermarkPos] = useState<{ x: number; y: number }>({ x: 30, y: 40 });
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
   // Real PDF document states
@@ -118,7 +118,7 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
   const [isRenderingPage, setIsRenderingPage] = useState<boolean>(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Author, Admin, and Free book readers have full unblocked reading rights
+  // Effective rights: Author, Admin, and Free books have full access
   const effectiveIsAcquired = isAcquired || isAuthorOrAdmin || book.isFree || book.priceMAD === 0;
 
   // Custom user PDF upload states
@@ -126,7 +126,7 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
   const [isUploadingCustomPdf, setIsUploadingCustomPdf] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Total pages: dynamically use real PDF pages if available, or book totalPages
+  // Total pages
   const totalPagesCount =
     !showStructuredText && pdfDoc
       ? pdfDoc.numPages
@@ -148,67 +148,15 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
     };
   }, [book.id, book.pdfUrl]);
 
-  // Handle local user/professor/admin upload of a real PDF for this book
-  const handleCustomPdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
-        alert(lang === 'fr' ? 'Veuillez sélectionner un fichier PDF valide (.pdf)' : 'يرجى اختيار ملف بصيغة PDF (.pdf)');
-        return;
-      }
-      setIsUploadingCustomPdf(true);
-      setPdfError(null);
-      try {
-        const objectUrl = await saveBookPdf(book.id, file);
-        const pageCount = await getPdfPageCount(file);
-        setPdfUrl(objectUrl);
-        setPdfDoc(null);
-        setCurrentPage(1);
-        setShowStructuredText(false);
-        if (onUpdateBookPdf) {
-          onUpdateBookPdf(book.id, objectUrl, pageCount || undefined, file.name);
-        }
-        setUploadPdfToast(
-          lang === 'fr'
-            ? `Fichier "${file.name}" (${pageCount ? `${pageCount} pages, ` : ''}${(file.size / (1024 * 1024)).toFixed(1)} Mo) chargé et sauvegardé avec succès !`
-            : `تم رفع ملف "${file.name}" (${pageCount ? `${pageCount} صفحة، ` : ''}${(file.size / (1024 * 1024)).toFixed(1)} ميغابايت) وتخزينه بنجاح!`
-        );
-        setTimeout(() => setUploadPdfToast(null), 5000);
-      } catch (err) {
-        console.error('Failed to save custom PDF in reader:', err);
-      } finally {
-        setIsUploadingCustomPdf(false);
-      }
-    }
-  };
-
-  // Allow resetting an uploaded PDF and reverting back to structured academic text
-  const handleClearCustomPdf = async () => {
-    try {
-      await deleteBookPdf(book.id);
-      setPdfUrl(null);
-      setPdfDoc(null);
-      setCurrentPage(1);
-      setShowStructuredText(true);
-      setUploadPdfToast(
-        lang === 'fr'
-          ? 'Fichier PDF réinitialisé. Affichage des chapitres académiques.'
-          : 'تم إزالة ملف الـ PDF والرجوع إلى قراءة فصول المرجع الأكاديمي.'
-      );
-      setTimeout(() => setUploadPdfToast(null), 4000);
-    } catch (err) {
-      console.warn('Notice clearing custom PDF:', err);
-    }
-  };
-
-  // Load PDF document when pdfUrl is available
+  // Load PDF Document when pdfUrl changes
   useEffect(() => {
+    let isCancelled = false;
     if (!pdfUrl) {
       setPdfDoc(null);
+      setPdfLoading(false);
       return;
     }
 
-    let isMounted = true;
     setPdfLoading(true);
     setPdfError(null);
 
@@ -218,42 +166,99 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
       cMapPacked: true,
       standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/standard_fonts/',
     });
+
     loadingTask.promise
-      .then((doc) => {
-        if (isMounted) {
-          setPdfDoc(doc);
+      .then((loadedDoc) => {
+        if (!isCancelled) {
+          setPdfDoc(loadedDoc);
           setPdfLoading(false);
-          setPdfError(null);
-          if (currentPage > doc.numPages) {
-            setCurrentPage(1);
-          }
         }
       })
       .catch((err) => {
-        console.warn('PDF.js loading notice:', err);
-        if (isMounted) {
-          setPdfError(err?.message || 'Notice');
+        if (!isCancelled) {
+          console.warn('Could not load PDF via Canvas worker:', err);
+          setPdfError(err.message || 'Erreur de chargement');
           setPdfLoading(false);
+          setReaderMode('native');
         }
       });
 
     return () => {
-      isMounted = false;
+      isCancelled = true;
+      try {
+        loadingTask.destroy();
+      } catch {}
     };
   }, [pdfUrl]);
 
-  // Render current PDF page to canvas
-  useEffect(() => {
-    if (!pdfDoc || !canvasRef.current) return;
-    let renderTask: any = null;
-    let isCancelled = false;
+  // Handle PDF Custom Upload
+  const handleCustomPdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    // Do not render beyond allowed sample pages for unacquired books
+    if (file.type !== 'application/pdf') {
+      alert(lang === 'fr' ? 'Veuillez sélectionner un fichier PDF valide.' : 'يرجى اختيار ملف PDF صالح.');
+      return;
+    }
+
+    try {
+      setIsUploadingCustomPdf(true);
+      const newPageCount = await getPdfPageCount(file);
+      const blobUrl = await saveBookPdf(book.id, file);
+
+      setPdfUrl(blobUrl);
+      setShowStructuredText(false);
+
+      if (onUpdateBookPdf) {
+        onUpdateBookPdf(book.id, blobUrl, newPageCount, file.name);
+      }
+
+      setUploadPdfToast(
+        lang === 'fr'
+          ? `Document PDF (${newPageCount} pages) rattaché avec succès !`
+          : `تم إرفاق ملف PDF بنجاح (${newPageCount} صفحة)!`
+      );
+
+      setTimeout(() => setUploadPdfToast(null), 5000);
+    } catch (err) {
+      console.error('Error attaching PDF:', err);
+      alert(lang === 'fr' ? 'Échec du chargement du fichier PDF.' : 'فشل تحميل ملف الـ PDF.');
+    } finally {
+      setIsUploadingCustomPdf(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Remove attached PDF
+  const handleRemoveCustomPdf = async () => {
+    if (!window.confirm(lang === 'fr' ? 'Détacher le fichier PDF de ce livre ?' : 'هل تريد فصل ملف PDF عن هذا الكتاب؟')) return;
+    try {
+      await deleteBookPdf(book.id);
+      setPdfUrl(null);
+      setPdfDoc(null);
+      setShowStructuredText(true);
+      setUploadPdfToast(
+        lang === 'fr' ? 'Fichier PDF détaché de la mémoire locale.' : 'تم فصل ملف الـ PDF من الذاكرة المحلية.'
+      );
+      setTimeout(() => setUploadPdfToast(null), 3000);
+    } catch (err) {
+      console.error('Error deleting PDF:', err);
+    }
+  };
+
+  // Render PDF Page to Canvas HD
+  useEffect(() => {
+    if (!pdfDoc || showStructuredText || readerMode !== 'canvas') return;
+
+    let isCancelled = false;
+    let renderTask: any = null;
+
     if (!effectiveIsAcquired && currentPage > (book.sampleMaxPage || 2)) {
       return;
     }
 
     setIsRenderingPage(true);
+
     pdfDoc
       .getPage(currentPage)
       .then((page) => {
@@ -262,7 +267,8 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
         const context = canvas.getContext('2d');
         if (!context) return;
 
-        const baseScale = zoomLevel / 100;
+        // Dynamic scale factoring in zoom and screen width
+        const baseScale = (zoomLevel / 100) * (readerWidth === 'full' ? 1.5 : readerWidth === 'wide' ? 1.25 : 1.0);
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         const viewport = page.getViewport({ scale: baseScale * dpr });
 
@@ -271,26 +277,22 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
         canvas.style.width = `${viewport.width / dpr}px`;
         canvas.style.height = `${viewport.height / dpr}px`;
 
-        renderTask = page.render({
+        const renderContext = {
           canvasContext: context,
-          viewport,
-          canvas,
-        } as any);
+          viewport: viewport,
+        };
 
-        renderTask.promise
-          .then(() => {
-            if (!isCancelled) setIsRenderingPage(false);
-          })
-          .catch((err: any) => {
-            if (err?.name !== 'RenderingCancelledException') {
-              console.warn('PDF page render notice:', err);
-            }
-            if (!isCancelled) setIsRenderingPage(false);
-          });
+        renderTask = page.render(renderContext);
+        return renderTask.promise;
+      })
+      .then(() => {
+        if (!isCancelled) setIsRenderingPage(false);
       })
       .catch((err) => {
-        console.warn('Could not get page:', err);
-        if (!isCancelled) setIsRenderingPage(false);
+        if (!isCancelled && err.name !== 'RenderingCancelledException') {
+          console.warn('Canvas render issue:', err);
+          setIsRenderingPage(false);
+        }
       });
 
     return () => {
@@ -301,7 +303,7 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
         } catch {}
       }
     };
-  }, [pdfDoc, currentPage, zoomLevel, isAcquired, book.sampleMaxPage]);
+  }, [pdfDoc, currentPage, zoomLevel, readerWidth, isAcquired, book.sampleMaxPage, showStructuredText, readerMode]);
 
   // Sync fullscreen state
   useEffect(() => {
@@ -337,13 +339,12 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
     ) ||
     book.chapters?.[0] || {
       id: 'c1',
-      title: isArabicDoc ? 'الفصل 1 : المفاهيم التأسيسية والإطار النظري' : 'Chapitre 1 : Fondements & Concepts Clés',
+      title: isArabicDoc ? 'الفصل 1 : المفاهيم والأسس الجوهرية' : 'Chapitre 1 : Fondements & Concepts Clés',
       startPage: 1,
       pageCount: 4,
     };
 
   const pageOffsetInChap = Math.max(1, currentPage - (currentChapter.startPage || 1) + 1);
-
   const foundPage = book.pages?.find((p) => p.pageNumber === currentPage);
 
   const pageData = foundPage || {
@@ -356,10 +357,10 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
       : `FAC en PDF · ${book.title} · ${book.facultyLabel || book.faculty}`,
     content: isArabicDoc
       ? [
-          `المبحث ${pageOffsetInChap}.1 — التحليل المفاهيمي والإطار النظري المعمق`,
-          `يشكل هذا المطبوع المرجع البيداغوجي المعتمد لمادة "${book.titleAr || book.title}"، المبرمجة ضمن المسلك الجامعي المعتمد بـ ${book.university || 'الجامعة'}.`,
-          `في الصفحة ${currentPage}، يتناول المقرر القواعد والمبادئ التأسيسية للمادة، معززة بدراسات تطبيقية وتحليلات منهجية ضرورية لاجتياز امتحانات نهاية السداسي (${book.semester}).`,
-          `تذكير قانوني وأخلاقي: هذا المطبوع محمي بموجب التشريع المغربي المتعلق بحقوق المؤلف والحقوق المجاورة. يمنع منعا كليا التصوير أو النسخ أو الاستخراج أو النشر بدون ترخيص.`,
+          `المبحث ${pageOffsetInChap}.1 — التحليل المفاهيمي والإطار النظري المقارن`,
+          `يُعد هذا المرجع الوثيقة الجامعية الرسمية المعتمدة لتدريس مادة "${book.titleAr || book.title}"، والمقررة ضمن المسار الأكاديمي لدى ${book.university || 'الجامعة'}.`,
+          `في هذه الصفحة (${currentPage})، يتناول الأستاذ المحاضر تطبيقات المبادئ القانونية والتنظيمية الأساسية، مع أمثلة عملية وشروحات منهجية تساعد الطالب على التحضير الشامل للامتحانات واستيعاب المادة (${book.semester}).`,
+          `تنبيه بيداغوجي وأخلاقي: هذا المصنف محمي بموجب القوانين المغربية المنظمة لحقوق المؤلف والحقوق المجاورة. أي تصوير أو استخراج أو نشر غير مرخص يعرض صاحبه للمتابعة الإدارية والقانونية.`,
         ]
       : [
           `Section ${pageOffsetInChap}.1 — Analyse conceptuelle et cadre théorique approfondi`,
@@ -369,9 +370,9 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
         ],
     keyPoints: isArabicDoc
       ? [
-          `النقطة المحورية رقم ${currentPage} : المفاهيم والتعاريف الأساسية المقررة من الأستاذ(ة) ${book.author}.`,
-          `إرشادات بيداغوجية : يرجى مراجعة محاور الأعمال الموجهة (TD) والمراجع الببليوغرافية للمادة.`,
-          `نظام الحماية الرقمية DRM : قراءة شخصية ومحمية داخل التطبيق حصرياً.`,
+          `الفكرة المحورية رقم ${currentPage}: تأصيل المفاهيم والتطبيقات العملية للدكتور ${book.author}.`,
+          `توجيه بيداغوجي: مراجعة محاور الأعمال الموجهة (TD) والمصادر الببليوغرافية للمزيد من التعمق.`,
+          `حماية DRM نشطة: قراءة مشفرة وآمنة ومسجلة باسم الطالب داخل التطبيق.`,
         ]
       : [
           `Notion clé n°${currentPage} : Définitions et applications pratiques du cours de ${book.author}.`,
@@ -462,51 +463,98 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
 
   const isCurrentPageBookmarked = bookmarks.some((b) => b.pageNumber === currentPage);
 
-  // Background and styling based on themeMode
-  const themeContainerStyles = {
-    light: 'bg-stone-100 text-stone-900',
-    sepia: 'bg-[#EDE4D3] text-stone-900',
-    dark: 'bg-[#121110] text-stone-100',
+  // =========================================================================
+  // THEME HARMONIZATION ENGINE (SURGICAL CONTRAST & ACCURACY)
+  // =========================================================================
+  const THEME_CONFIG = {
+    light: {
+      container: 'bg-stone-100 text-stone-900',
+      topBar: 'bg-white/95 border-stone-200 text-stone-900',
+      bottomDock: 'bg-white/95 border-stone-200 text-stone-900 shadow-xl',
+      page: 'bg-white text-stone-900 border-stone-200/90 shadow-2xl',
+      title: 'text-stone-900',
+      header: 'text-stone-500 border-stone-200',
+      body: 'text-stone-800',
+      keyPointsBg: 'bg-stone-50/90 border-amber-600 text-stone-800',
+      keyPointsTitle: 'text-amber-800',
+      keyPointsBullet: 'text-amber-600',
+      footer: 'text-stone-500 border-stone-200',
+      canvasFilter: 'none',
+      canvasWrapper: 'bg-white border-stone-300',
+    },
+    sepia: {
+      container: 'bg-[#EDE4D3] text-[#3c2a1a]',
+      topBar: 'bg-[#F5EBD9]/95 border-[#D9CDB8] text-[#3c2a1a]',
+      bottomDock: 'bg-[#F5EBD9]/95 border-[#D9CDB8] text-[#3c2a1a] shadow-xl',
+      page: 'bg-[#FBF5E8] text-[#3c2a1a] border-[#D9CDB8] shadow-2xl',
+      title: 'text-[#2b1d12]',
+      header: 'text-[#7d6046] border-[#D9CDB8]',
+      body: 'text-[#3c2a1a]',
+      keyPointsBg: 'bg-[#F2E5CE] border-amber-700 text-[#4a3525]',
+      keyPointsTitle: 'text-amber-900',
+      keyPointsBullet: 'text-amber-700',
+      footer: 'text-[#7d6046] border-[#D9CDB8]',
+      canvasFilter: 'sepia(0.38) contrast(0.96) brightness(0.98)',
+      canvasWrapper: 'bg-[#FBF5E8] border-[#D9CDB8]',
+    },
+    dark: {
+      container: 'bg-[#09090b] text-stone-100',
+      topBar: 'bg-[#18181b]/95 border-stone-800 text-stone-100',
+      bottomDock: 'bg-[#18181b]/95 border-stone-800 text-stone-100 shadow-2xl',
+      page: 'bg-[#18181b] text-stone-100 border-stone-800 shadow-2xl',
+      title: 'text-white',
+      header: 'text-stone-400 border-stone-800',
+      body: 'text-stone-200',
+      keyPointsBg: 'bg-[#27272a] border-amber-500 text-stone-200',
+      keyPointsTitle: 'text-amber-400',
+      keyPointsBullet: 'text-amber-400',
+      footer: 'text-stone-400 border-stone-800',
+      canvasFilter: 'invert(0.92) hue-rotate(180deg) contrast(1.1) brightness(0.95)',
+      canvasWrapper: 'bg-[#18181b] border-stone-800',
+    },
   };
 
-  const canvasFilters = {
-    light: 'none',
-    sepia: 'sepia(0.35) contrast(0.95) brightness(0.98)',
-    dark: 'invert(0.92) hue-rotate(180deg) contrast(1.1) brightness(0.95)',
+  const currTheme = THEME_CONFIG[themeMode];
+
+  // Dynamic page width class based on reader width toggle
+  const getPageWidthClass = () => {
+    if (readerWidth === 'standard') return 'max-w-3xl w-full';
+    if (readerWidth === 'wide') return 'max-w-5xl w-full';
+    return 'max-w-7xl w-full';
   };
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex flex-col ${themeContainerStyles[themeMode]} select-none transition-colors duration-200 overflow-hidden`}
+      className={`fixed inset-0 z-50 flex flex-col ${currTheme.container} select-none transition-colors duration-200 overflow-hidden`}
     >
       {/* Top Application Bar */}
-      <div className="h-14 border-b border-stone-200 dark:border-stone-800 bg-white/95 dark:bg-stone-900/95 backdrop-blur-md px-3 sm:px-4 flex items-center justify-between shrink-0 shadow-xs z-30">
+      <div className={`h-14 border-b ${currTheme.topBar} backdrop-blur-md px-3 sm:px-4 flex items-center justify-between shrink-0 shadow-xs z-30 transition-colors`}>
         {/* Left: Close & Book Title */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             type="button"
             onClick={onClose}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs transition-all shadow-xs cursor-pointer shrink-0 border border-amber-600/30"
-            title={lang === 'fr' ? 'Retourner à la bibliothèque' : 'العودة إلى المكتبة الرئيسية'}
+            title={lang === 'fr' ? 'Retourner à la bibliothèque' : 'الرجوع إلى المكتبة'}
           >
             <ChevronLeft className="w-4 h-4 rtl:rotate-180" />
-            <span>{lang === 'fr' ? 'Retour' : 'العودة للمكتبة'}</span>
+            <span className="hidden sm:inline">{lang === 'fr' ? 'Retour' : 'رجوع'}</span>
           </button>
 
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 transition-colors cursor-pointer sm:hidden"
+            className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-stone-600 dark:text-stone-300 transition-colors cursor-pointer sm:hidden"
             title={lang === 'fr' ? 'Fermer le lecteur' : 'إغلاق القارئ'}
           >
             <X className="w-4 h-4" />
           </button>
 
           <div className="min-w-0">
-            <h1 className="text-xs sm:text-sm font-bold text-stone-900 dark:text-white truncate max-w-[200px] sm:max-w-xs md:max-w-md">
+            <h1 className="text-xs sm:text-sm font-bold truncate max-w-[160px] sm:max-w-xs md:max-w-md">
               {lang === 'ar' && book.titleAr ? book.titleAr : book.title}
             </h1>
-            <div className="flex items-center gap-1.5 text-[11px] text-stone-500 dark:text-stone-400 truncate">
+            <div className="flex items-center gap-1.5 text-[11px] opacity-75 truncate">
               <span>{book.author}</span>
               <span>·</span>
               <span className="flex items-center gap-0.5 text-emerald-600 font-semibold">
@@ -516,8 +564,8 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
               {pdfDoc && (
                 <>
                   <span>·</span>
-                  <span className="text-amber-700 font-bold bg-amber-100 px-1.5 py-0.2 rounded text-[10px]">
-                    PDF Réel
+                  <span className="text-amber-700 font-bold bg-amber-100 dark:bg-amber-950/70 px-1.5 py-0.2 rounded text-[10px]">
+                    PDF HD
                   </span>
                 </>
               )}
@@ -525,27 +573,27 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
           </div>
         </div>
 
-        {/* Center: Pagination & Navigation */}
+        {/* Center: Pagination & Navigation Buttons */}
         <div className="flex items-center gap-1 sm:gap-2">
           <button
             onClick={handlePrevPage}
             disabled={currentPage <= 1}
-            className="p-1.5 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-40 text-stone-700 dark:text-stone-200 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30 transition-colors cursor-pointer"
             title="Page précédente"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
 
-          <div className="flex items-center gap-1 text-xs font-mono bg-stone-100 dark:bg-stone-800 px-2.5 py-1 rounded-lg border border-stone-200 dark:border-stone-700">
-            <span className="font-bold tabular-nums text-stone-900 dark:text-white">{currentPage}</span>
-            <span className="text-stone-400">/</span>
-            <span className="text-stone-500 tabular-nums">{totalPagesCount}</span>
+          <div className="flex items-center gap-1 text-xs font-mono bg-black/5 dark:bg-white/10 px-2.5 py-1 rounded-lg border border-black/10 dark:border-white/10">
+            <span className="font-bold tabular-nums">{currentPage}</span>
+            <span className="opacity-40">/</span>
+            <span className="opacity-75 tabular-nums">{totalPagesCount}</span>
           </div>
 
           <button
             onClick={handleNextPage}
             disabled={currentPage >= maxAllowedPage}
-            className="p-1.5 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-40 text-stone-700 dark:text-stone-200 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30 transition-colors cursor-pointer"
             title="Page suivante"
           >
             <ChevronRight className="w-4 h-4" />
@@ -554,28 +602,59 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
 
         {/* Right: Controls & Prominent Reading Modes & Fullscreen */}
         <div className="flex items-center gap-1 sm:gap-2">
+          {/* Width Mode Toggle (Standard / Wide / Full) */}
+          <div className="hidden md:flex items-center gap-0.5 bg-black/5 dark:bg-white/10 p-0.5 rounded-lg border border-black/10 dark:border-white/10">
+            <button
+              onClick={() => setReaderWidth('standard')}
+              className={`px-2 py-1 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                readerWidth === 'standard' ? 'bg-amber-500 text-stone-950 shadow-xs' : 'opacity-60 hover:opacity-100'
+              }`}
+              title="Largeur Standard (780px)"
+            >
+              780
+            </button>
+            <button
+              onClick={() => setReaderWidth('wide')}
+              className={`px-2 py-1 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                readerWidth === 'wide' ? 'bg-amber-500 text-stone-950 shadow-xs' : 'opacity-60 hover:opacity-100'
+              }`}
+              title="Largeur Confort (1100px)"
+            >
+              Confort
+            </button>
+            <button
+              onClick={() => setReaderWidth('full')}
+              className={`px-2 py-1 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                readerWidth === 'full' ? 'bg-amber-500 text-stone-950 shadow-xs' : 'opacity-60 hover:opacity-100'
+              }`}
+              title="Plein Écran / Large (100%)"
+            >
+              Large
+            </button>
+          </div>
+
           {/* Zoom Controls */}
-          <div className="hidden lg:flex items-center gap-1 bg-stone-100 dark:bg-stone-800 rounded-lg p-0.5 border border-stone-200 dark:border-stone-700">
+          <div className="hidden lg:flex items-center gap-1 bg-black/5 dark:bg-white/10 rounded-lg p-0.5 border border-black/10 dark:border-white/10">
             <button
               onClick={() => setZoomLevel((z) => Math.max(70, z - 15))}
-              className="p-1 hover:bg-white dark:hover:bg-stone-700 rounded transition-colors text-stone-700 dark:text-stone-300"
+              className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors"
               title="Zoom arrière"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
-            <span className="text-[11px] font-mono px-1 tabular-nums text-stone-800 dark:text-stone-200">{zoomLevel}%</span>
+            <span className="text-[11px] font-mono px-1 tabular-nums font-bold">{zoomLevel}%</span>
             <button
-              onClick={() => setZoomLevel((z) => Math.min(140, z + 15))}
-              className="p-1 hover:bg-white dark:hover:bg-stone-700 rounded transition-colors text-stone-700 dark:text-stone-300"
+              onClick={() => setZoomLevel((z) => Math.min(160, z + 15))}
+              className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors"
               title="Zoom avant"
             >
               <ZoomIn className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          {/* PROMINENT READING MODES & FULLSCREEN */}
-          <div className="flex items-center gap-1 p-1 bg-stone-100 dark:bg-stone-800 rounded-xl border border-stone-200 dark:border-stone-700 shadow-2xs">
-            {/* Jour (نهار) */}
+          {/* PROMINENT READING THEME MODES (JOUR / JAUNE / NUIT) */}
+          <div className="flex items-center gap-1 p-1 bg-black/5 dark:bg-white/10 rounded-xl border border-black/10 dark:border-white/10 shadow-2xs">
+            {/* Jour (نهاري) */}
             <button
               type="button"
               onClick={() => setThemeMode('light')}
@@ -584,13 +663,13 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
                   ? 'bg-white text-stone-900 shadow-xs border border-stone-300 ring-2 ring-amber-500/40'
                   : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 hover:bg-white/50'
               }`}
-              title={lang === 'fr' ? 'Mode Jour (Fond Blanc)' : 'قراءة نهارية (خلفية بيضاء)'}
+              title={lang === 'fr' ? 'Mode Jour (Fond Blanc)' : 'وضع نهاري (أبيض)'}
             >
               <Sun className={`w-3.5 h-3.5 ${themeMode === 'light' ? 'text-amber-500 fill-amber-500/20' : ''}`} />
-              <span className="hidden sm:inline">{lang === 'fr' ? 'Jour' : 'نهارية'}</span>
+              <span className="hidden sm:inline">{lang === 'fr' ? 'Jour' : 'نهاري'}</span>
             </button>
 
-            {/* Jaune / Sepia (خلفية صفراء) */}
+            {/* Jaune / Sepia (دافئ ومريح) */}
             <button
               type="button"
               onClick={() => setThemeMode('sepia')}
@@ -599,13 +678,13 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
                   ? 'bg-[#EDE4D3] text-amber-950 shadow-xs border border-amber-300 ring-2 ring-amber-500/40'
                   : 'text-stone-600 dark:text-stone-400 hover:text-amber-950 hover:bg-[#EDE4D3]/60'
               }`}
-              title={lang === 'fr' ? 'Fond Jaune Sépia (Repos des yeux)' : 'خلفية صفراء مريحة للعين'}
+              title={lang === 'fr' ? 'Fond Jaune Sépia (Repos des yeux)' : 'وضع أصفر دافئ مريح للعين'}
             >
               <span className="w-3 h-3 rounded-full bg-[#E5D7B7] border border-amber-600/60 inline-block shrink-0 shadow-2xs" />
-              <span className="hidden sm:inline">{lang === 'fr' ? 'Jaune' : 'صفراء'}</span>
+              <span className="hidden sm:inline">{lang === 'fr' ? 'Jaune' : 'أصفر'}</span>
             </button>
 
-            {/* Nuit (ليلية) */}
+            {/* Nuit (ليلي عالي التباين) */}
             <button
               type="button"
               onClick={() => setThemeMode('dark')}
@@ -614,45 +693,35 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
                   ? 'bg-stone-900 text-amber-300 shadow-xs border border-stone-700 ring-2 ring-amber-500/40'
                   : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 hover:bg-stone-700/50'
               }`}
-              title={lang === 'fr' ? 'Mode Nuit (Fond Sombre)' : 'قراءة ليلية (خلفية داكنة)'}
+              title={lang === 'fr' ? 'Mode Nuit (Fond Sombre)' : 'وضع ليلي عالي الوضوح'}
             >
               <Moon className={`w-3.5 h-3.5 ${themeMode === 'dark' ? 'text-amber-300 fill-amber-300/30' : ''}`} />
-              <span className="hidden sm:inline">{lang === 'fr' ? 'Nuit' : 'ليلية'}</span>
+              <span className="hidden sm:inline">{lang === 'fr' ? 'Nuit' : 'ليلي'}</span>
             </button>
 
             <div className="w-px h-4 bg-stone-300 dark:bg-stone-700 mx-0.5" />
 
-            {/* Fullscreen (ملء الشاشة) */}
+            {/* Fullscreen Button */}
             <button
               type="button"
               onClick={handleToggleFullscreen}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 isFullscreen
                   ? 'bg-amber-600 text-white shadow-xs ring-2 ring-amber-400'
-                  : 'bg-stone-200/90 dark:bg-stone-700/90 hover:bg-stone-300 dark:hover:bg-stone-600 text-stone-800 dark:text-stone-100'
+                  : 'hover:bg-black/5 dark:hover:bg-white/10'
               }`}
-              title={
-                isFullscreen
-                  ? lang === 'fr'
-                    ? 'Quitter le mode plein écran'
-                    : 'الخروج من ملء الشاشة'
-                  : lang === 'fr'
-                  ? 'Activer la lecture plein écran'
-                  : 'قراءة ملء الشاشة'
-              }
+              title={isFullscreen ? 'Quitter plein écran' : 'Plein écran'}
             >
               {isFullscreen ? (
                 <Minimize className="w-3.5 h-3.5 text-white" />
               ) : (
-                <Maximize className="w-3.5 h-3.5 text-stone-700 dark:text-stone-200" />
+                <Maximize className="w-3.5 h-3.5" />
               )}
-              <span className="hidden md:inline">
-                {isFullscreen ? (lang === 'fr' ? 'Réduire' : 'إنهاء') : (lang === 'fr' ? 'Plein écran' : 'ملء الشاشة')}
-              </span>
+              <span className="hidden lg:inline">{isFullscreen ? 'Réduire' : 'Plein écran'}</span>
             </button>
           </div>
 
-          {/* Toggle between Structured Arabic Chapters and Uploaded PDF if both available */}
+          {/* Toggle between Structured Chapters and PDF if both available */}
           {pdfUrl && book.pages && book.pages.length > 0 && (
             <button
               type="button"
@@ -662,112 +731,29 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
                   ? 'bg-amber-600 text-white border-amber-500 shadow-xs'
                   : 'bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700 hover:border-amber-400'
               }`}
-              title={
-                showStructuredText
-                  ? (lang === 'fr' ? 'Revenir au lecteur PDF' : 'الرجوع إلى قارئ ملف الـ PDF')
-                  : (lang === 'fr' ? 'Afficher les chapitres textuels' : 'قراءة الفصول الأكاديمية بالعربية')
-              }
             >
               <BookOpen className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">
-                {showStructuredText
-                  ? (lang === 'fr' ? 'Mode PDF' : 'قارئ PDF')
-                  : (lang === 'fr' ? 'Fصول الكتاب' : 'فصول الكتاب')}
+                {showStructuredText ? 'Mode PDF' : 'Texte'}
               </span>
             </button>
           )}
-
-          {/* Reader Mode Toggle (Canvas HD DRM vs Native Direct PDF) when viewing PDF */}
-          {pdfUrl && !showStructuredText && (
-            <div className="flex items-center gap-1 p-1 bg-stone-100 dark:bg-stone-800 rounded-xl border border-stone-200 dark:border-stone-700 shadow-2xs">
-              <button
-                type="button"
-                onClick={() => setReaderMode('canvas')}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  readerMode === 'canvas'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 hover:bg-white/50'
-                }`}
-                title={lang === 'fr' ? 'Mode Canvas HD Sécurisé' : 'القارئ الرقمي عالي الدقة (Canvas HD)'}
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                <span className="hidden lg:inline">{lang === 'fr' ? 'Canvas HD' : 'قارئ HD'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setReaderMode('native')}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  readerMode === 'native'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 hover:bg-white/50'
-                }`}
-                title={lang === 'fr' ? 'Mode PDF Natif Direct' : 'المستعرض المباشر لملف PDF الأصلي'}
-              >
-                <FileText className="w-3.5 h-3.5" />
-                <span className="hidden lg:inline">{lang === 'fr' ? 'PDF Direct' : 'مستعرض PDF'}</span>
-              </button>
-            </div>
-          )}
-
-          {/* Real PDF Custom File Upload Button */}
-          <div className="relative flex items-center gap-1">
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept=".pdf"
-              onChange={handleCustomPdfUpload}
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploadingCustomPdf}
-              className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              title={
-                lang === 'fr'
-                  ? 'Charger un fichier PDF réel depuis votre appareil pour ce livre (Stocké dans la mémoire locale)'
-                  : 'رفع وإرفاق كتاب الـ PDF الحقيقي من جهازك (يتم حفظه محلياً في الذاكرة المشفرة)'
-              }
-            >
-              {isUploadingCustomPdf ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Upload className="w-3.5 h-3.5" />
-              )}
-              <span className="hidden md:inline">
-                {pdfUrl
-                  ? (lang === 'fr' ? 'Remplacer PDF' : 'استبدال الـ PDF')
-                  : (lang === 'fr' ? 'Charger mon PDF' : 'رفع ملف PDF')}
-              </span>
-            </button>
-
-            {pdfUrl && (
-              <button
-                type="button"
-                onClick={handleClearCustomPdf}
-                className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
-                title={lang === 'fr' ? 'Retirer ce PDF et revenir aux chapitres' : 'إزالة ملف الـ PDF والرجوع لفصول الكتاب'}
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
 
           {/* Bookmark Button */}
           <button
             onClick={handleToggleBookmark}
-            className={`p-1.5 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer ${
-              isCurrentPageBookmarked ? 'text-amber-600' : 'text-stone-500'
+            className={`p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer ${
+              isCurrentPageBookmarked ? 'text-amber-600' : 'opacity-60'
             }`}
             title="Marque-page"
           >
             <Bookmark className={`w-4 h-4 ${isCurrentPageBookmarked ? 'fill-amber-600' : ''}`} />
           </button>
 
-          {/* Sidebar Toggle */}
+          {/* Sidebar Drawer Toggle */}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1.5 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
             title="Sommaire et annotations"
           >
             <List className="w-4 h-4" />
@@ -775,24 +761,8 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
         </div>
       </div>
 
-      {/* Upload PDF Notification Toast Banner */}
-      {uploadPdfToast && (
-        <div className="bg-emerald-950 border-b border-emerald-500/50 text-emerald-200 px-4 py-2 text-xs font-semibold flex items-center justify-between shadow-md z-40 animate-in fade-in">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>{uploadPdfToast}</span>
-          </div>
-          <button
-            onClick={() => setUploadPdfToast(null)}
-            className="text-emerald-400 hover:text-white p-1 text-xs cursor-pointer"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
-      {/* Main Reading Canvas & Container */}
-      <div className="flex-1 relative overflow-auto flex items-start justify-center p-3 sm:p-6 md:p-8">
+      {/* Main Reading Canvas & Scrollable Content Area */}
+      <div className="flex-1 relative overflow-auto flex flex-col items-center p-3 sm:p-6 md:p-8 pb-20">
         {/* Anti-Screen Capture Shield Overlay */}
         {isShieldActive && (
           <div className="absolute inset-0 z-40 bg-stone-950/95 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-100">
@@ -803,18 +773,18 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
               <h2 className="text-lg font-bold text-white mb-2">
                 {lang === 'fr'
                   ? 'Contenu Masqué — Protection Anti-Capture'
-                  : 'تم حجب المحتوى — حماية حقوق التأليف والنشر'}
+                  : 'محتوى محمي — درع الحماية ضد لقطات الشاشة'}
               </h2>
               <p className="text-xs text-stone-300 leading-relaxed mb-6">
                 {lang === 'fr'
                   ? 'Pour empêcher l\'extraction illégale et les captures d\'écran par outils tiers, la page se masque instantanément lors de la perte de focus de l\'application.'
-                  : 'لحماية المحاضرات والكتب الجامعية من التسريب والقرصنة، يتم إخفاء المحتوى فور فقدان تركيز نافذة التطبيق أو تشغيل أدوات القص.'}
+                  : 'لحماية المحتوى الأكاديمي من الاستخراج غير المرخص، يتم حجب الصفحة تلقائياً عند مغادرة نافذة التطبيق.'}
               </p>
               <button
                 onClick={() => setIsShieldActive(false)}
                 className="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold text-xs rounded-lg transition-colors cursor-pointer"
               >
-                {lang === 'fr' ? 'Reprendre la lecture sécurisée' : 'العودة للمتابعة الآمنة'}
+                {lang === 'fr' ? 'Reprendre la lecture sécurisée' : 'استئناف القراءة الآمنة'}
               </button>
             </div>
           </div>
@@ -844,12 +814,12 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
               <Lock className="w-7 h-7" />
             </div>
             <h3 className="text-lg font-bold text-stone-900 dark:text-white mb-2">
-              {lang === 'fr' ? 'Fin de l\'Extrait Gratuit' : 'نهاية العينة المجانية للدرس'}
+              {lang === 'fr' ? 'Fin de l\'Extrait Gratuit' : 'نهاية العينة المجانية للقراءة'}
             </h3>
             <p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed mb-6">
               {lang === 'fr'
                 ? `Vous avez atteint la limite de prévisualisation (page ${book.sampleMaxPage || 2}/${totalPagesCount}). Inscrivez-vous et débloquez votre licence étudiante au tarif préférentiel.`
-                : `لقد اطلعت على الصفحات التجريبية المسموحة (${book.sampleMaxPage || 2}/${totalPagesCount}). يرجى تفعيل ترخيصك بالتعريفة التفضيلية للطلبة لمطالعة كافة صفحات المقرر.`}
+                : `لقد وصلت إلى حد القراءة التجريبية المجانية (${book.sampleMaxPage || 2}/${totalPagesCount}). يرجى اقتناء الكتاب لفتح الترخيص كاملاً بالتعريفة الطلابية المدعومة.`}
             </p>
             <button
               onClick={() => onAcquireBook(book.id)}
@@ -860,16 +830,16 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
                 {book.isFree
                   ? lang === 'fr'
                     ? 'Activer le polycopié gratuit'
-                    : 'تفعيل المطبوع مجاناً'
+                    : 'تفعيل الكتاب المجاني'
                   : lang === 'fr'
                   ? `Activer la Licence Étudiant (${book.priceMAD} DH)`
-                  : `تفعيل الترخيص الأكاديمي (${book.priceMAD} درهم)`}
+                  : `تفعيل الترخيص الطلابي (${book.priceMAD} درهم)`}
               </span>
             </button>
           </div>
         ) : (
           /* The Academic Reading Container */
-          <div className="relative flex flex-col items-center">
+          <div className="relative flex flex-col items-center w-full">
             {/* Dynamic Moving Forensic Watermark */}
             <div
               style={{
@@ -877,7 +847,7 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
                 left: `${watermarkPos.x}%`,
                 transform: 'translate(-50%, -50%) rotate(-25deg)',
               }}
-              className="absolute pointer-events-none z-30 transition-all duration-1000 ease-out text-center opacity-20"
+              className="absolute pointer-events-none z-30 transition-all duration-1000 ease-out text-center opacity-25"
             >
               <div className="font-mono text-[11px] font-black tracking-widest text-stone-950 dark:text-white uppercase drop-shadow-xs">
                 FAC EN PDF · ÉTUDIANT: {student.studentId || 'AUTHENTIFIÉ'}
@@ -897,248 +867,94 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
             </div>
 
             {/* REAL PDF CANVAS MODE */}
-            {/* NATIVE DIRECT PDF VIEWER MODE */}
-            {!showStructuredText && readerMode === 'native' && pdfUrl ? (
-              <div className="w-full max-w-4xl flex flex-col items-center">
-                <div className="relative w-full h-[82vh] rounded-2xl overflow-hidden shadow-2xl border border-stone-300 dark:border-stone-800 bg-white">
-                  <object
-                    data={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=1`}
-                    type="application/pdf"
-                    className="w-full h-full block border-0"
-                  >
-                    <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-stone-50 dark:bg-stone-900 space-y-4">
-                      <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400 flex items-center justify-center mx-auto">
-                        <FileText className="w-6 h-6" />
-                      </div>
-                      <h4 className="text-sm font-bold text-stone-900 dark:text-white">
-                        {lang === 'fr'
-                          ? 'Lecture PDF directe par votre appareil'
-                          : 'عرض المطبوع بصيغة PDF'}
-                      </h4>
-                      <p className="text-xs text-stone-500 max-w-sm">
-                        {lang === 'fr'
-                          ? 'Pour un confort optimal sur mobile et tablette avec filigrane sécurisé, utilisez le lecteur Canvas HD.'
-                          : 'لتجربة قراءة مثالية على الهاتف والحاسوب، نوصي باستخدام قارئ Canvas HD المعتمد.'}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setReaderMode('canvas')}
-                        className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-2"
-                      >
-                        <BookOpen className="w-4 h-4" />
-                        <span>{lang === 'fr' ? 'Passer en Canvas HD' : 'التبديل إلى قارئ Canvas HD'}</span>
-                      </button>
-                    </div>
-                  </object>
-                </div>
-
-                {/* Sub-viewer bar */}
-                <div className="mt-3 flex flex-wrap items-center justify-between w-full px-2 gap-2 text-xs text-stone-500 dark:text-stone-400">
-                  <div className="flex items-center gap-1.5 font-medium">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
-                    <span className="font-semibold text-emerald-800 dark:text-emerald-400">
-                      {lang === 'fr' ? 'Mode PDF Natif Direct Actif' : 'مستعرض PDF الأصلي المباشر نشط ومحمي'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setReaderMode('canvas')}
-                      className="flex items-center gap-1 px-3 py-1 bg-amber-50 dark:bg-stone-800 hover:bg-amber-100 dark:hover:bg-stone-700 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-stone-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                    >
-                      <BookOpen className="w-3.5 h-3.5 text-amber-600" />
-                      <span>{lang === 'fr' ? 'Passer en Canvas HD' : 'التبديل إلى قارئ Canvas HD'}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center gap-1 px-3 py-1 bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>{lang === 'fr' ? 'Remplacer le PDF' : 'استبدال ملف PDF'}</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : !showStructuredText && pdfDoc ? (
-              /* REAL PDF CANVAS MODE */
-              <div className="flex flex-col items-center">
+            {!showStructuredText && pdfDoc ? (
+              <div className="flex flex-col items-center w-full">
                 <div
-                  className="relative rounded-2xl overflow-hidden shadow-2xl border border-stone-300 dark:border-stone-800 bg-white"
+                  className={`relative rounded-2xl overflow-hidden shadow-2xl border ${currTheme.canvasWrapper}`}
                   style={{
-                    filter: canvasFilters[themeMode],
+                    filter: currTheme.canvasFilter,
                     transition: 'filter 0.2s ease',
                   }}
                 >
                   {isRenderingPage && (
-                    <div className="absolute inset-0 bg-white/60 dark:bg-stone-900/60 backdrop-blur-xs flex items-center justify-center z-10">
-                      <Loader2 className="w-8 h-8 text-amber-600 animate-spin" />
+                    <div className="absolute inset-0 bg-black/20 backdrop-blur-xs flex items-center justify-center z-10">
+                      <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
                     </div>
                   )}
-                  <canvas ref={canvasRef} className="block max-w-full h-auto" />
-                </div>
-
-                {/* Sub-canvas Document Info & Instant PDF Re-upload action */}
-                <div className="mt-3.5 flex flex-wrap items-center justify-between w-full max-w-2xl px-2 gap-2 text-xs text-stone-500 dark:text-stone-400">
-                  <div className="flex items-center gap-1.5 font-medium">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
-                    <span className="font-semibold text-emerald-800 dark:text-emerald-400">
-                      {lang === 'fr' ? 'Moteur PDF Natif Canvas HD' : 'محرك عرض PDF الحقيقي عالي الدقة'}
-                    </span>
-                    <span>·</span>
-                    <span className="font-mono">{currentPage} / {totalPagesCount}</span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setReaderMode('native')}
-                      className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 dark:bg-stone-800 hover:bg-emerald-100 dark:hover:bg-stone-700 text-emerald-900 dark:text-emerald-300 border border-emerald-300 dark:border-stone-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                    >
-                      <FileText className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>{lang === 'fr' ? 'Vue PDF Directe' : 'المستعرض المباشر'}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 dark:bg-stone-800 hover:bg-amber-100 dark:hover:bg-stone-700 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-stone-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                    >
-                      <Upload className="w-3.5 h-3.5 text-amber-600" />
-                      <span>{lang === 'fr' ? 'Remplacer le PDF' : 'استبدال بملف آخر'}</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : !showStructuredText && pdfError ? (
-              /* PDF Error Fallback with Instant Native View Option */
-              <div className="min-h-[420px] w-[520px] max-w-full bg-white dark:bg-stone-900 rounded-3xl border border-stone-200 dark:border-stone-800 shadow-2xl flex flex-col items-center justify-center p-8 text-center space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400 flex items-center justify-center mx-auto">
-                  <FileText className="w-7 h-7" />
-                </div>
-                <h3 className="text-base font-bold text-stone-900 dark:text-white">
-                  {lang === 'fr' ? 'Affichage du document PDF' : 'عرض ملف المطبوع الجامعي'}
-                </h3>
-                <p className="text-xs text-stone-500 max-w-sm leading-relaxed">
-                  {lang === 'fr'
-                    ? 'Vous pouvez basculer immédiatement vers le lecteur PDF direct natif ou recharger votre fichier :'
-                    : 'يمكنك الانتقال فوراً للمستعرض المباشر لقراءة ملف الـ PDF الأصلي أو إعادة رفعه:'}
-                </p>
-                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                  {pdfUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setReaderMode('native')}
-                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center gap-2 cursor-pointer shadow-md transition-all"
-                    >
-                      <FileText className="w-4 h-4" />
-                      <span>{lang === 'fr' ? 'Ouvrir en Mode PDF Direct' : 'فتح بالمستعرض المباشر (PDF Direct)'}</span>
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-4 py-2.5 bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-900 dark:text-white font-bold text-xs rounded-xl flex items-center gap-2 cursor-pointer border border-stone-300 dark:border-stone-700 transition-all"
-                  >
-                    <Upload className="w-4 h-4 text-amber-600" />
-                    <span>{lang === 'fr' ? 'Choisir un fichier PDF' : 'اختيار ملف PDF من جهازي'}</span>
-                  </button>
+                  <canvas ref={canvasRef} className="block max-w-full h-auto mx-auto" />
                 </div>
               </div>
             ) : !showStructuredText && pdfLoading ? (
               /* Loading Real PDF indicator */
               <div className="min-h-[600px] w-[500px] max-w-full bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-xl flex flex-col items-center justify-center p-8 text-center space-y-3">
                 <Loader2 className="w-10 h-10 text-amber-600 animate-spin" />
-                <h3 className="text-sm font-bold text-stone-900 dark:text-white">
-                  {lang === 'fr' ? 'Chargement du document PDF...' : 'جاري فتح وتحميل صفحات المرجع بأمان...'}
+                <h3 className="text-sm font-bold">
+                  {lang === 'fr' ? 'Chargement du document PDF...' : 'جاري معالجة صفحات الكتاب...'}
                 </h3>
-                <p className="text-xs text-stone-500">
+                <p className="text-xs opacity-70">
                   {lang === 'fr'
                     ? 'Préparation de la lecture in-app avec injection du filigrane DRM.'
-                    : 'يتم تشفير الصفحات وتوليد العلامة المائية الرقمية للاطلاع الآمن.'}
+                    : 'يتم تهيئة القارئ المحمي وتطبيق العلامة المائية المشفرة.'}
                 </p>
               </div>
             ) : (
-              /* STRUCTURED ARABIC TEXT VIEW & OPTIONAL PDF ATTACHMENT */
-              <div className="flex flex-col items-center w-full max-w-3xl space-y-4">
-                {pdfUrl ? (
-                  <div className="w-full p-4 bg-emerald-50 dark:bg-stone-800 border border-emerald-300 dark:border-emerald-700/60 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                        <CheckCircle2 className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-bold text-stone-900 dark:text-white">
-                          {lang === 'fr' ? 'Polycopié PDF complet rattaché' : 'ملف الـ PDF الأصلي مخزن ومتاح'}
-                        </h4>
-                        <p className="text-[11px] text-stone-600 dark:text-stone-300">
-                          {lang === 'fr'
-                            ? 'Vous lisez actuellement les chapitres textuels. Vous pouvez basculer vers le lecteur PDF complet à tout moment.'
-                            : 'أنت تطالع الآن الفصول الأكاديمية المصادق عليها. يمكنك الانتقال إلى مستعرض ملف الـ PDF الأصلي في أي وقت.'}
-                        </p>
-                      </div>
+              /* STRUCTURED ARABIC TEXT VIEW (CLEAN, WIDE & EYE-RESTING) */
+              <div className={`flex flex-col items-center ${getPageWidthClass()} transition-all duration-200 space-y-4`}>
+                {/* Optional Collapsible PDF Attachment Banner (Dismissible by Student) */}
+                {!pdfUrl && !isBannerDismissed && (
+                  <div className="w-full p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-xs animate-in fade-in">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Upload className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span className="truncate opacity-90">
+                        {lang === 'fr'
+                          ? 'Vous lisez le cours au format structuré optimisé pour la lecture.'
+                          : 'أنت تتصفح المحتوى الأكاديمي بالنمط النصي المنظم والمريح للقراءة.'}
+                      </span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowStructuredText(false)}
-                      className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
-                    >
-                      <BookOpen className="w-3.5 h-3.5" />
-                      <span>{lang === 'fr' ? 'Afficher le PDF' : 'فتح ملف الـ PDF'}</span>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="w-full p-4 bg-amber-50 dark:bg-stone-800 border border-amber-300 dark:border-amber-700/60 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
-                        <Upload className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-bold text-stone-900 dark:text-white">
-                          {lang === 'fr' ? 'Attacher le fichier PDF complet de ce cours' : 'إرفاق أو رفع كتاب الـ PDF الكامل لهذا المقرر'}
-                        </h4>
-                        <p className="text-[11px] text-stone-600 dark:text-stone-300">
-                          {lang === 'fr'
-                            ? 'Chargez le document PDF officiel pour ce cours afin d\'activer la lecture in-app HD (toutes les pages).'
-                            : 'يمكنك اختيار ملف الـ PDF الأصلي لهذا المقرر من جهازك لمطالعة كافة الصفحات فوراً داخل القارئ المشفر.'}
-                        </p>
-                      </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg transition-colors cursor-pointer"
+                      >
+                        {lang === 'fr' ? 'Charger un PDF' : 'إرفاق PDF'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsBannerDismissed(true)}
+                        className="p-1 text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 rounded-md cursor-pointer"
+                        title="Masquer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>{lang === 'fr' ? 'Charger le PDF' : 'رفع ملف الـ PDF الآن'}</span>
-                    </button>
                   </div>
                 )}
 
+                {/* THE MAIN BOOK READING CARD */}
                 <div
-                  style={{ width: `${Math.min(960, 780 * (zoomLevel / 100))}px` }}
-                  className={`relative min-h-[920px] p-8 sm:p-12 md:p-16 rounded-2xl border shadow-xl bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-800 transition-all duration-150 leading-relaxed`}
+                  className={`relative min-h-[920px] p-8 sm:p-12 md:p-16 rounded-3xl border ${currTheme.page} transition-all duration-150 leading-relaxed w-full`}
                 >
                   {/* Page Header */}
-                  <div className="border-b border-stone-200/80 dark:border-stone-800 pb-3 mb-6 flex items-center justify-between text-xs text-stone-500 dark:text-stone-400">
+                  <div className={`border-b ${currTheme.header} pb-3 mb-6 flex items-center justify-between text-xs`}>
                     <span className="font-medium tracking-wide uppercase truncate max-w-sm">
                       {pageData.header || book.title}
                     </span>
-                    <span className="font-mono tabular-nums">Page {pageData.pageNumber || currentPage}</span>
+                    <span className="font-mono tabular-nums font-bold">Page {pageData.pageNumber || currentPage}</span>
                   </div>
 
-                  {/* Chapter Title */}
+                  {/* Chapter Title - HIGH CONTRAST IN ALL THEMES */}
                   <div className="mb-6">
-                    <h2 className="text-xl sm:text-2xl font-bold tracking-tight mb-1 text-balance">
+                    <h2 className={`text-xl sm:text-2xl font-black tracking-tight mb-2 ${currTheme.title}`}>
                       {pageData.chapterTitle || `Section ${currentPage}`}
                     </h2>
-                    <div className="h-0.5 w-12 bg-amber-600 rounded-full" />
+                    <div className="h-1 w-14 bg-amber-500 rounded-full" />
                   </div>
 
                   {/* Main Content Paragraphs */}
-                  <div className="space-y-4 text-sm sm:text-base leading-relaxed text-justify text-stone-800 dark:text-stone-200">
+                  <div className={`space-y-4 text-base sm:text-lg leading-relaxed text-justify ${currTheme.body}`}>
                     {(pageData.content || []).map((paragraph, idx) => (
-                      <p key={idx} className="first-letter:font-semibold">
+                      <p key={idx} className="first-letter:font-bold">
                         {paragraph}
                       </p>
                     ))}
@@ -1146,14 +962,14 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
 
                   {/* Key Points */}
                   {pageData.keyPoints && pageData.keyPoints.length > 0 && (
-                    <div className="my-8 p-4 bg-stone-50/80 dark:bg-stone-800/60 border-l-4 border-amber-600 rounded-r-xl">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-400 mb-2">
+                    <div className={`my-8 p-5 border-l-4 rounded-r-2xl ${currTheme.keyPointsBg}`}>
+                      <h4 className={`text-xs font-bold uppercase tracking-wider mb-2.5 ${currTheme.keyPointsTitle}`}>
                         {lang === 'fr' ? 'Points Clés & Synthèse du Module' : 'النقاط الجوهرية والملخص الأكاديمي'}
                       </h4>
-                      <ul className="space-y-1.5 text-xs sm:text-sm text-stone-700 dark:text-stone-300">
+                      <ul className="space-y-2 text-sm sm:text-base">
                         {pageData.keyPoints.map((point, idx) => (
                           <li key={idx} className="flex items-start gap-2">
-                            <span className="text-amber-600 font-bold shrink-0">•</span>
+                            <span className={`font-bold shrink-0 ${currTheme.keyPointsBullet}`}>◆</span>
                             <span>{point}</span>
                           </li>
                         ))}
@@ -1162,7 +978,7 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
                   )}
 
                   {/* Page Footer */}
-                  <div className="mt-12 pt-4 border-t border-stone-200/80 dark:border-stone-800 flex items-center justify-between text-[11px] text-stone-500 dark:text-stone-400">
+                  <div className={`mt-12 pt-4 border-t ${currTheme.footer} flex items-center justify-between text-[11px]`}>
                     <span>{book.author} — {book.facultyLabel || book.faculty}</span>
                     <span className="font-mono">FAC-PDF-SECURE-PAGE-{currentPage}</span>
                   </div>
@@ -1173,17 +989,51 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
         )}
       </div>
 
+      {/* Floating Bottom Quick Navigation Dock (Page Slider) */}
+      <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-4 py-2 rounded-2xl backdrop-blur-md border shadow-2xl transition-all ${currTheme.bottomDock}`}>
+        <button
+          onClick={handlePrevPage}
+          disabled={currentPage <= 1}
+          className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30 cursor-pointer"
+          title="Page précédente"
+        >
+          <ChevronLeft className="w-4 h-4 rtl:rotate-180" />
+        </button>
+
+        <input
+          type="range"
+          min={1}
+          max={totalPagesCount}
+          value={currentPage}
+          onChange={(e) => setCurrentPage(Number(e.target.value))}
+          className="w-32 sm:w-56 h-1.5 bg-stone-300 dark:bg-stone-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
+        />
+
+        <button
+          onClick={handleNextPage}
+          disabled={currentPage >= maxAllowedPage}
+          className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30 cursor-pointer"
+          title="Page suivante"
+        >
+          <ChevronRight className="w-4 h-4 rtl:rotate-180" />
+        </button>
+
+        <span className="font-mono font-bold text-xs tabular-nums min-w-[50px] text-center">
+          {currentPage} / {totalPagesCount}
+        </span>
+      </div>
+
       {/* Floating Table of Contents / Sidebar Drawer */}
       {sidebarOpen && (
-        <div className="absolute top-14 right-0 bottom-0 w-80 bg-white dark:bg-stone-900 border-l border-stone-200 dark:border-stone-800 shadow-2xl z-40 flex flex-col animate-in slide-in-from-right duration-200">
-          <div className="p-3 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between">
+        <div className={`absolute top-14 right-0 bottom-0 w-80 ${currTheme.topBar} border-l shadow-2xl z-40 flex flex-col animate-in slide-in-from-right duration-200`}>
+          <div className="p-3 border-b border-black/10 dark:border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setActiveTab('toc')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
                   activeTab === 'toc'
-                    ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-300'
-                    : 'text-stone-600 dark:text-stone-400'
+                    ? 'bg-amber-500 text-stone-950'
+                    : 'opacity-70 hover:opacity-100'
                 }`}
               >
                 {lang === 'fr' ? 'Sommaire' : 'الفهرس'}
@@ -1192,8 +1042,8 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
                 onClick={() => setActiveTab('bookmarks')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
                   activeTab === 'bookmarks'
-                    ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-300'
-                    : 'text-stone-600 dark:text-stone-400'
+                    ? 'bg-amber-500 text-stone-950'
+                    : 'opacity-70 hover:opacity-100'
                 }`}
               >
                 {lang === 'fr' ? 'Signets' : 'العلامات'} ({bookmarks.length})
@@ -1201,7 +1051,7 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
             </div>
             <button
               onClick={() => setSidebarOpen(false)}
-              className="p-1 rounded-md text-stone-500 hover:text-stone-900 cursor-pointer"
+              className="p-1 rounded-md opacity-60 hover:opacity-100 cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1210,7 +1060,7 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
           <div className="flex-1 overflow-y-auto p-4 space-y-2 text-xs">
             {activeTab === 'toc' && (
               <div className="space-y-1">
-                <div className="text-[11px] font-bold text-stone-500 mb-2 uppercase tracking-wide">
+                <div className="text-[11px] font-bold opacity-60 mb-2 uppercase tracking-wide">
                   {lang === 'fr' ? 'Chapitres & Pages' : 'الفصول والصفحات'}
                 </div>
                 {book.chapters?.map((chap, idx) => (
@@ -1225,12 +1075,12 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
                     }}
                     className={`w-full p-2.5 rounded-xl text-start flex items-center justify-between transition-colors cursor-pointer ${
                       currentPage >= chap.startPage && currentPage < chap.startPage + chap.pageCount
-                        ? 'bg-amber-50 dark:bg-amber-950/50 border border-amber-300 text-amber-950 dark:text-amber-300 font-bold'
-                        : 'hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300'
+                        ? 'bg-amber-500/20 border border-amber-500 text-amber-500 font-bold'
+                        : 'hover:bg-black/5 dark:hover:bg-white/10'
                     }`}
                   >
                     <span className="truncate">{chap.title}</span>
-                    <span className="font-mono text-[10px] text-stone-400 ml-2">P. {chap.startPage}</span>
+                    <span className="font-mono text-[10px] opacity-60 ml-2">P. {chap.startPage}</span>
                   </button>
                 ))}
               </div>
@@ -1239,9 +1089,9 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
             {activeTab === 'bookmarks' && (
               <div className="space-y-1.5">
                 {bookmarks.length === 0 ? (
-                  <div className="text-center py-8 text-stone-400">
-                    <Bookmark className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p>{lang === 'fr' ? 'Aucun signet enregistré' : 'لا توجد علامات مرجعية محفوظة'}</p>
+                  <div className="text-center py-8 opacity-50">
+                    <Bookmark className="w-8 h-8 mx-auto mb-2" />
+                    <p>{lang === 'fr' ? 'Aucun signet enregistré' : 'لا توجد علامات محفوظة'}</p>
                   </div>
                 ) : (
                   bookmarks.map((bm) => (
@@ -1252,13 +1102,13 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
                         setCurrentPage(bm.pageNumber);
                         setSidebarOpen(false);
                       }}
-                      className="w-full p-2.5 rounded-xl bg-stone-50 dark:bg-stone-800/50 border border-stone-200 dark:border-stone-700 text-start flex items-center justify-between cursor-pointer"
+                      className="w-full p-2.5 rounded-xl bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-start flex items-center justify-between cursor-pointer"
                     >
                       <div>
-                        <div className="font-bold text-stone-900 dark:text-white">Page {bm.pageNumber}</div>
-                        <div className="text-[10px] text-stone-500">{bm.chapterTitle}</div>
+                        <div className="font-bold">Page {bm.pageNumber}</div>
+                        <div className="text-[10px] opacity-60">{bm.chapterTitle}</div>
                       </div>
-                      <span className="text-[10px] text-amber-600 font-mono">{bm.createdAt}</span>
+                      <span className="text-[10px] text-amber-500 font-mono">{bm.createdAt}</span>
                     </button>
                   ))
                 )}
