@@ -25,6 +25,8 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
   student,
   adminRib,
   onClose,
+  onSuccess,
+  lang,
 }) => {
   const [studentName, setStudentName] = useState(student?.name || '');
   const [studentEmail, setStudentEmail] = useState(student?.email || '');
@@ -46,83 +48,97 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
       const storageRef = ref(storage, `receipts/${Date.now()}_${receiptFile.name}`);
       const uploadResult = await uploadBytes(storageRef, receiptFile);
       const receiptUrl = await getDownloadURL(uploadResult.ref);
-// 2. إرسال البريد الإلكتروني عبر EmailJS (بحماية try/catch لكي لا يتوقف الكود)
+    // 2. إرسال البريد الإلكتروني عبر EmailJS (بحماية try/catch لكي لا يتوقف الكود)
     try {
-      const templateParams = {
-        student_name: studentName,
-        student_email: studentEmail,
-        book_title: typeof bookTitle !== 'undefined' ? bookTitle : 'مطبوع',
-        receipt_url: receiptUrl,
-      };
+      const emailjsServiceId = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_EMAILJS_SERVICE_ID) || (import.meta as any)?.env?.VITE_EMAILJS_SERVICE_ID || '';
+      const emailjsTemplateId = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID) || (import.meta as any)?.env?.VITE_EMAILJS_TEMPLATE_ID || '';
+      const emailjsPublicKey = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY) || (import.meta as any)?.env?.VITE_EMAILJS_PUBLIC_KEY || '';
 
-      await emailjs.send(
-        process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID!,
-        process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID!,
-        templateParams,
-        process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY!
-      );
+      if (emailjsServiceId && emailjsTemplateId && emailjsPublicKey) {
+        const templateParams = {
+          student_name: studentName,
+          student_email: studentEmail,
+          book_title: book?.title || 'مطبوع',
+          receipt_url: receiptUrl,
+        };
+
+        await emailjs.send(
+          emailjsServiceId,
+          emailjsTemplateId,
+          templateParams,
+          emailjsPublicKey
+        );
+      }
     } catch (emailErr) {
-      console.error('خطأ في إرسال البريد:', emailErr);
+      console.error('خطأ في إرسال البريد عبر EmailJS:', emailErr);
     }
 
-   // 1. توليد مفتاح DRM فريد مرتبط بالكتاب والمستعمل
-const generatedDrmKey = `FAC-2026-${Math.random().toString(36).substring(2, 7).toUpperCase()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
-const actualPrice = (book as any)?.priceMAD ?? book?.price ?? 50;
+    // 1. توليد مفتاح DRM فريد مرتبط بالكتاب والمستعمل
+    const generatedDrmKey = `FAC-2026-${Math.random().toString(36).substring(2, 7).toUpperCase()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+    const actualPrice = (book as any)?.priceMAD ?? book?.price ?? 50;
 
-// 2. إنشاء مفتاح الـ DRM في Firestore بحالة نشطة ومربوط بالكتاب
-await addDoc(collection(db, 'drm_keys'), {
-  key: generatedDrmKey,
-  bookId: book?.id || '',
-  bookTitle: book?.title || '',
-  studentEmail: studentEmail,
-  studentName: studentName,
-  deviceId: null, // سيتم ربطه تلقائياً عند أول فتح للمطبوع من جهاز الطالب
-  status: 'active', // مفعل فوراً، ويمكن للإدارة تحويله إلى revoked لاحقاً
-  createdAt: serverTimestamp(),
-});
+    // 2. إنشاء مفتاح الـ DRM في Firestore بحالة نشطة ومربوط بالكتاب
+    await addDoc(collection(db, 'drm_keys'), {
+      key: generatedDrmKey,
+      bookId: book?.id || '',
+      bookTitle: book?.title || '',
+      studentEmail: studentEmail,
+      studentName: studentName,
+      deviceId: null, // سيتم ربطه تلقائياً عند أول فتح للمطبوع من جهاز الطالب
+      status: 'active', // مفعل فوراً، ويمكن للإدارة تحويله إلى revoked لاحقاً
+      createdAt: serverTimestamp(),
+    });
 
-// 3. حفظ تفاصيل طلب الشراء في Firestore
-await addDoc(collection(db, 'paymentOrders'), {
-  bookId: book?.id || '',
-  bookTitle: book?.title || '',
-  bookPrice: actualPrice,
-  studentName,
-  studentEmail,
-  studentPhone,
-  receiptUrl,
-  drmKey: generatedDrmKey,
-  status: 'active', // أو pending للمراجعة البعدية
-  createdAt: serverTimestamp(),
-});
-
-// 4. تجهيز رسالة الواتساب الشاملة وتوجيه الطالب
-const phone = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '212645987915';
-const textMessage = encodeURIComponent(
-  `مرحباً، أود تأكيد طلبي لشراء المطبوع:\n` +
-  `📘 الكتاب: ${book?.title}\n` +
-  `👤 الاسم: ${studentName}\n` +
-  `📧 البريد: ${studentEmail}\n` +
-  `🔑 مفتاح التفعيل: ${generatedDrmKey}\n` +
-  `🧾 رابط وصل الدفع: ${receiptUrl}`
-);
-
-window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${textMessage}`, '_blank');
-// إرسال بريد إلكتروني لتأكيد الطلب عبر Resend
-try {
-  await fetch('/api/send-email', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+    // 3. حفظ تفاصيل طلب الشراء في Firestore
+    await addDoc(collection(db, 'paymentOrders'), {
+      bookId: book?.id || '',
+      bookTitle: book?.title || '',
+      bookPrice: actualPrice,
       studentName,
       studentEmail,
-      bookTitle: book?.title,
+      studentPhone,
       receiptUrl,
-    }),
-  });
-} catch (emailErr) {
-  console.error('Failed to send confirmation email:', emailErr);
-}
-      setSubmitted(true);
+      drmKey: generatedDrmKey,
+      status: 'active', // تم التحصيل
+      createdAt: serverTimestamp(),
+    });
+
+    // 4. تجهيز رسالة الواتساب الشاملة وتوجيه الطالب
+    const phone = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_WHATSAPP_NUMBER) || (import.meta as any)?.env?.VITE_WHATSAPP_NUMBER || '212645987915';
+    const textMessage = encodeURIComponent(
+      `مرحباً، أود تأكيد طلبي لشراء المطبوع:\n` +
+      `📘 الكتاب: ${book?.title}\n` +
+      `👤 الاسم: ${studentName}\n` +
+      `📧 البريد: ${studentEmail}\n` +
+      `🔑 مفتاح التفعيل: ${generatedDrmKey}\n` +
+      `🧾 رابط وصل الدفع: ${receiptUrl}`
+    );
+
+    try {
+      window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${textMessage}`, '_blank');
+    } catch {}
+
+    // إرسال بريد إلكتروني لتأكيد الطلب عبر Resend إن وُجد
+    try {
+      await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentName,
+          studentEmail,
+          bookTitle: book?.title,
+          receiptUrl,
+        }),
+      });
+    } catch (emailErr) {
+      console.warn('Resend email notice:', emailErr);
+    }
+
+    if (onSuccess) {
+      onSuccess('Cash Plus / Virement Bancaire', { receiptUrl, studentPhone }, generatedDrmKey);
+    }
+
+    setSubmitted(true);
     } catch (error) {
       console.error('Error submitting order:', error);
       alert('حدث خطأ أثناء إرسال الطلب، يرجى المحاولة مرة أخرى.');

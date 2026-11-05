@@ -22,40 +22,43 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
   const [activeTab, setActiveTab] = useState('livres');
   
   // Data States
+  const [internalBooks, setInternalBooks] = useState<any[]>(books);
+  const [internalProfessors, setInternalProfessors] = useState<any[]>(professors);
   const [students, setStudents] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [drmCodes, setDrmCodes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-// Real-time synchronization with Firestore
+
+  // Sync with props if they change
+  useEffect(() => {
+    if (books && books.length > 0) setInternalBooks(books);
+  }, [books]);
+
+  useEffect(() => {
+    if (professors && professors.length > 0) setInternalProfessors(professors);
+  }, [professors]);
+
+  // Real-time synchronization with Firestore
   useEffect(() => {
     const unsubBooks = subscribeToBooks((data) => {
-      setBooks(data);
+      if (data && data.length > 0) setInternalBooks(data);
       setLoading(false);
     });
 
     const unsubProfessors = subscribeToProfessors((data) => {
-      setProfessors(data);
+      if (data && data.length > 0) setInternalProfessors(data);
     });
 
     const unsubStudents = subscribeToStudents((data) => {
-      setStudents(data);
+      setStudents(data || []);
     });
 
-    return () => {
-      unsubBooks();
-      unsubProfessors();
-      unsubStudents();
-    };
-  }, []);
-  // Subscriptions
-  useEffect(() => {
-    const unsubBooks = subscribeToBooks((data) => setBooks(data || []));
-    const unsubProfs = subscribeToProfessors((data) => setProfessors(data || []));
-    const unsubStudents = subscribeToStudents((data) => setStudents(data || []));
-    const unsubTx = subscribeToTransactions((data) => setTransactions(data || []));
+    const unsubTx = subscribeToTransactions((data) => {
+      setTransactions(data || []);
+    });
 
-    // DRM Codes Subscription
-    const unsubDrm = onSnapshot(collection(db, 'redemptionCodes'), (snapshot) => {
+    // DRM Keys Subscription from Firestore (both drm_keys and redemptionCodes)
+    const unsubDrm = onSnapshot(collection(db, 'drm_keys'), (snapshot) => {
       const codes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setDrmCodes(codes || []);
       setLoading(false);
@@ -63,12 +66,15 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
 
     return () => {
       unsubBooks();
-      unsubProfs();
+      unsubProfessors();
       unsubStudents();
       unsubTx();
       unsubDrm();
     };
   }, []);
+
+  const displayBooks = internalBooks.length > 0 ? internalBooks : books;
+  const displayProfessors = internalProfessors.length > 0 ? internalProfessors : professors;
 
   // Financial Calculations
   const totalGross = transactions.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
@@ -118,7 +124,7 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
           </div>
           <div className="p-4 bg-stone-50 border border-stone-200 rounded-lg">
             <span className="text-xs text-stone-500 font-medium">Enseignants Partenaires</span>
-            <p className="text-xl font-bold text-stone-800 mt-1">{professors.length}</p>
+            <p className="text-xl font-bold text-stone-800 mt-1">{displayProfessors.length}</p>
           </div>
         </div>
       </div>
@@ -126,9 +132,9 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
       {/* Navigation Tabs Bar */}
       <div className="flex gap-2 mb-6 overflow-x-auto pb-2 border-b border-stone-300">
         {[
-          { id: 'livres', label: 'Livres & Polycopiés', count: books.length, icon: Book },
+          { id: 'livres', label: 'Livres & Polycopiés', count: displayBooks.length, icon: Book },
           { id: 'drm', label: 'Licences DRM & Accès', count: drmCodes.length, icon: Key },
-          { id: 'profs', label: 'Comptes des Enseignants', count: professors.length, icon: Users },
+          { id: 'profs', label: 'Comptes des Enseignants', count: displayProfessors.length, icon: Users },
           { id: 'students', label: 'Comptes des Étudiants', count: students.length, icon: GraduationCap },
           { id: 'faculties', label: 'Facultés & Départements', count: 0, icon: Building2 },
           { id: 'finance', label: 'Compte Commercial & Encaissement', count: transactions.length, icon: Building },
@@ -181,15 +187,15 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
                   </tr>
                 </thead>
                 <tbody>
-                  {books.length === 0 ? (
+                  {displayBooks.length === 0 ? (
                     <tr><td colSpan={6} className="p-4 text-center text-stone-400">Aucun livre enregistré</td></tr>
                   ) : (
-                    books.map((b) => (
+                    displayBooks.map((b) => (
                       <tr key={b.id} className="border-b border-stone-100 hover:bg-stone-50">
                         <td className="p-3 font-semibold text-stone-900">{b.title}</td>
                         <td className="p-3">{b.faculty || '—'} / S{b.semester || '1'}</td>
                         <td className="p-3">{b.author || '—'}</td>
-                        <td className="p-3 font-bold text-emerald-700">{b.price || 0} DH</td>
+                        <td className="p-3 font-bold text-emerald-700">{b.priceMAD ?? b.price ?? 0} DH</td>
                         <td className="p-3"><span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[10px]">Actif</span></td>
                         <td className="p-3">
                           <button onClick={() => handleDeleteUser('book', b.id)} className="text-red-600 hover:text-red-800">
@@ -267,10 +273,10 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
                 </tr>
               </thead>
               <tbody>
-                {professors.length === 0 ? (
+                {displayProfessors.length === 0 ? (
                   <tr><td colSpan={5} className="p-4 text-center text-stone-400">Aucun enseignant inscrit</td></tr>
                 ) : (
-                  professors.map((p) => (
+                  displayProfessors.map((p) => (
                     <tr key={p.id} className="border-b border-stone-100 hover:bg-stone-50">
                       <td className="p-3 font-semibold">{p.fullName || p.email}</td>
                       <td className="p-3 font-mono">{p.rib || 'Non renseigné'}</td>
