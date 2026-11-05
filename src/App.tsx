@@ -141,13 +141,23 @@ export default function App() {
   useEffect(() => {
     const unsubBooks = subscribeToBooks((data) => {
       if (data && data.length > 0) {
-        setBooks(data);
+        setBooks(() => {
+          const map = new Map<string, Book>();
+          MOCK_BOOKS.forEach((b) => map.set(b.id, b));
+          data.forEach((b) => map.set(b.id, b));
+          return Array.from(map.values());
+        });
       }
     });
 
     const unsubProfs = subscribeToProfessors((data) => {
       if (data && data.length > 0) {
-        setProfessors(data);
+        setProfessors(() => {
+          const map = new Map<string, Professor>();
+          INITIAL_PROFESSORS.forEach((p) => map.set(p.id, p));
+          data.forEach((p) => map.set(p.id, p));
+          return Array.from(map.values());
+        });
       }
     });
 
@@ -162,10 +172,6 @@ export default function App() {
   
   // Professor Private Authentication State (Gatekeeping by Institutional Email)
   const [authenticatedProfessor, setAuthenticatedProfessor] = useState<Professor | null>(null);
-
-  // Commercial Payment & Admin Collection State
-  const [adminCommercialAccount, setAdminCommercialAccount] = useState<AdminCommercialAccount | null>(null);
-  const [paymentOrders, setPaymentOrders] = useState<PaymentOrder[]>([]);
 
   // Direct Filter state for Digital Library Catalog
   const [catalogFacultyFilter, setCatalogFacultyFilter] = useState<string>('all');
