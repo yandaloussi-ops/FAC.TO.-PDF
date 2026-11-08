@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Book, StudentProfile, UserNote, UserBookmark, DRMSecurityAlert } from '../types';
 import * as pdfjsLib from 'pdfjs-dist';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { loadBookPdf, saveBookPdf, deleteBookPdf, getPdfPageCount } from '../utils/pdfStorage';
 import { uploadFileToStorage } from '../services/firestoreService';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -36,15 +35,10 @@ import {
 } from 'lucide-react';
 import { setupDrmProtection } from '../utils/drmShield';
 
-// Initialize PDF.js worker with resilient fallback
+// Initialize PDF.js worker with resilient global CDN to prevent 404 fake worker errors
 if (typeof window !== 'undefined') {
-  try {
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      pdfWorker || 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/pdf.worker.min.mjs';
-  } catch {
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/pdf.worker.min.mjs';
-  }
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/pdf.worker.min.mjs';
 }
 
 interface SecureReaderProps {
