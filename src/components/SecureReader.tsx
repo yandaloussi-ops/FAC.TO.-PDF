@@ -133,7 +133,7 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
   const totalPagesCount =
     !showStructuredText && pdfDoc
       ? pdfDoc.numPages
-      : Math.max(book.pages?.length || 0, book.totalPages || 8, 1);
+      : Math.max(book.totalPages || 0, book.pages?.length || 0, 1);
   const maxAllowedPage = effectiveIsAcquired ? totalPagesCount : Math.min(book.sampleMaxPage || 2, totalPagesCount);
 
   // Check IndexedDB / memory storage for real PDF on mount
@@ -163,8 +163,14 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
     setPdfLoading(true);
     setPdfError(null);
 
+    // Resolve URL through serverless proxy when hosted on Firebase Storage to completely eliminate CORS blocks
+    const effectiveUrl =
+      pdfUrl.includes('firebasestorage.googleapis.com')
+        ? `/api/pdf-proxy?url=${encodeURIComponent(pdfUrl)}`
+        : pdfUrl;
+
     const loadingTask = pdfjsLib.getDocument({
-      url: pdfUrl,
+      url: effectiveUrl,
       cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/cmaps/',
       cMapPacked: true,
       standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/standard_fonts/',
@@ -179,6 +185,32 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
       })
       .catch((err) => {
         if (!isCancelled) {
+          // If proxy failed, try direct URL as fallback
+          if (effectiveUrl !== pdfUrl) {
+            console.warn('Proxy load failed, trying direct URL:', err);
+            const fallbackTask = pdfjsLib.getDocument({
+              url: pdfUrl,
+              cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/cmaps/',
+              cMapPacked: true,
+              standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/standard_fonts/',
+            });
+            fallbackTask.promise
+              .then((fallbackDoc) => {
+                if (!isCancelled) {
+                  setPdfDoc(fallbackDoc);
+                  setPdfLoading(false);
+                }
+              })
+              .catch((directErr) => {
+                if (!isCancelled) {
+                  console.warn('Direct PDF load failed:', directErr);
+                  setPdfError(directErr.message || 'Erreur de chargement');
+                  setPdfLoading(false);
+                  setReaderMode('native');
+                }
+              });
+            return;
+          }
           console.warn('Could not load PDF via Canvas worker:', err);
           setPdfError(err.message || 'Erreur de chargement');
           setPdfLoading(false);
@@ -922,6 +954,23 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
                     : 'يتم تهيئة القارئ المحمي وتطبيق العلامة المائية المشفرة.'}
                 </p>
               </div>
+            ) : pdfError ? (
+              <div className="max-w-md mx-auto my-8 p-6 bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 rounded-2xl text-center space-y-3 shadow-md">
+                <AlertTriangle className="w-8 h-8 text-rose-600 mx-auto" />
+                <h3 className="text-sm font-bold text-rose-900 dark:text-rose-200">
+                  {lang === 'fr' ? 'Erreur lors du chargement du fichier PDF' : 'تعذر عرض ملف الـ PDF'}
+                </h3>
+                <p className="text-xs text-rose-700 dark:text-rose-300">
+                  {pdfError}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 bg-rose-600 text-white rounded-xl text-xs font-bold hover:bg-rose-700 cursor-pointer"
+                >
+                  {lang === 'fr' ? 'Recharger le fichier PDF' : 'إعادة رفع ملف PDF صالح'}
+                </button>
+              </div>
             ) : (
               /* STRUCTURED ARABIC TEXT VIEW (CLEAN, WIDE & EYE-RESTING) */
               <div className={`flex flex-col items-center ${getPageWidthClass()} transition-all duration-200 space-y-4`}>
@@ -960,46 +1009,113 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
                 <div
                   className={`relative min-h-[920px] p-8 sm:p-12 md:p-16 rounded-3xl border ${currTheme.page} transition-all duration-150 leading-relaxed w-full`}
                 >
-                  {/* Page Header */}
-                  <div className={`border-b ${currTheme.header} pb-3 mb-6 flex items-center justify-between text-xs`}>
-                    <span className="font-medium tracking-wide uppercase truncate max-w-sm">
-                      {pageData.header || book.title}
-                    </span>
-                    <span className="font-mono tabular-nums font-bold">Page {pageData.pageNumber || currentPage}</span>
-                  </div>
+                  {/* Page 1: Official Book Cover Presentation */}
+                  {currentPage === 1 ? (
+                    <div className="flex flex-col items-center justify-center text-center py-6 sm:py-10">
+                      {book.coverImage && (
+                        <div className="relative mb-6 rounded-2xl overflow-hidden shadow-2xl border-4 border-amber-500/30 max-w-sm mx-auto group">
+                          <img
+                            src={book.coverImage}
+                            alt={book.title}
+                            className="w-full h-auto max-h-[480px] object-contain rounded-xl"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div className="absolute top-3 right-3 bg-emerald-700/90 backdrop-blur-xs text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-md flex items-center gap-1">
+                            <ShieldCheck size={12} />
+                            <span>Édition Officielle Protégée</span>
+                          </div>
+                        </div>
+                      )}
 
-                  {/* Chapter Title - HIGH CONTRAST IN ALL THEMES */}
-                  <div className="mb-6">
-                    <h2 className={`text-xl sm:text-2xl font-black tracking-tight mb-2 ${currTheme.title}`}>
-                      {pageData.chapterTitle || `Section ${currentPage}`}
-                    </h2>
-                    <div className="h-1 w-14 bg-amber-500 rounded-full" />
-                  </div>
+                      <h1 className={`text-2xl sm:text-3xl font-black tracking-tight mb-2 ${currTheme.title}`}>
+                        {book.title}
+                      </h1>
+                      
+                      {book.titleAr && book.titleAr !== book.title && (
+                        <h2 className="text-xl font-bold text-amber-700 dark:text-amber-400 mb-2 font-serif">
+                          {book.titleAr}
+                        </h2>
+                      )}
 
-                  {/* Main Content Paragraphs */}
-                  <div className={`space-y-4 text-base sm:text-lg leading-relaxed text-justify ${currTheme.body}`}>
-                    {(pageData.content || []).map((paragraph, idx) => (
-                      <p key={idx} className="first-letter:font-bold">
-                        {paragraph}
+                      <p className="text-sm font-bold text-amber-700 dark:text-amber-400 mb-1">
+                        {book.author}
                       </p>
-                    ))}
-                  </div>
 
-                  {/* Key Points */}
-                  {pageData.keyPoints && pageData.keyPoints.length > 0 && (
-                    <div className={`my-8 p-5 border-l-4 rounded-r-2xl ${currTheme.keyPointsBg}`}>
-                      <h4 className={`text-xs font-bold uppercase tracking-wider mb-2.5 ${currTheme.keyPointsTitle}`}>
-                        {lang === 'fr' ? 'Points Clés & Synthèse du Module' : 'النقاط الجوهرية والملخص الأكاديمي'}
-                      </h4>
-                      <ul className="space-y-2 text-sm sm:text-base">
-                        {pageData.keyPoints.map((point, idx) => (
-                          <li key={idx} className="flex items-start gap-2">
-                            <span className={`font-bold shrink-0 ${currTheme.keyPointsBullet}`}>◆</span>
-                            <span>{point}</span>
-                          </li>
-                        ))}
-                      </ul>
+                      <p className="text-xs text-stone-500 dark:text-stone-400 mb-6">
+                        {book.facultyLabel || book.faculty} · {book.university}
+                      </p>
+
+                      {/* Prominent Upload Notice if real PDF file is not attached yet */}
+                      {!pdfUrl && (
+                        <div className="max-w-md mx-auto p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 rounded-2xl text-xs text-amber-900 dark:text-amber-200 text-center space-y-2.5 shadow-sm">
+                          <div className="flex items-center justify-center gap-1.5 font-bold text-amber-800 dark:text-amber-300">
+                            <AlertTriangle size={16} />
+                            <span>
+                              {lang === 'fr' 
+                                ? 'Aperçu préliminaire : fichier PDF complet non encore rattaché'
+                                : 'المطبوع معروض حالياً بنمط الملخص الأولي (لم يتم إرفاق ملف الـ PDF بعد)'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] opacity-85 leading-relaxed">
+                            {lang === 'fr'
+                              ? 'Pour afficher l\'intégralité des pages du cours original avec son contenu complet, l\'enseignant ou l\'administrateur doit attacher le fichier PDF du polycopié.'
+                              : 'لعرض كافة صفحات المطبوع الأصلي (100 صفحة كاملة بمحتواها الحقيقي)، يرجى رفع ملف الـ PDF الخاص بهذا المقرر عبر الزر أدناه.'}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="mt-1 px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer inline-flex items-center gap-2"
+                          >
+                            <Upload size={14} />
+                            <span>{lang === 'fr' ? 'Attacher le fichier PDF officiel (Cloud)' : 'إرفاق ورفع ملف الـ PDF الأصلي الآن'}</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
+                  ) : (
+                    <>
+                      {/* Page Header */}
+                      <div className={`border-b ${currTheme.header} pb-3 mb-6 flex items-center justify-between text-xs`}>
+                        <span className="font-medium tracking-wide uppercase truncate max-w-sm">
+                          {pageData.header || book.title}
+                        </span>
+                        <span className="font-mono tabular-nums font-bold">Page {pageData.pageNumber || currentPage}</span>
+                      </div>
+
+                      {/* Chapter Title - HIGH CONTRAST IN ALL THEMES */}
+                      <div className="mb-6">
+                        <h2 className={`text-xl sm:text-2xl font-black tracking-tight mb-2 ${currTheme.title}`}>
+                          {pageData.chapterTitle || `Section ${currentPage}`}
+                        </h2>
+                        <div className="h-1 w-14 bg-amber-500 rounded-full" />
+                      </div>
+
+                      {/* Main Content Paragraphs */}
+                      <div className={`space-y-4 text-base sm:text-lg leading-relaxed text-justify ${currTheme.body}`}>
+                        {(pageData.content || []).map((paragraph, idx) => (
+                          <p key={idx} className="first-letter:font-bold">
+                            {paragraph}
+                          </p>
+                        ))}
+                      </div>
+
+                      {/* Key Points */}
+                      {pageData.keyPoints && pageData.keyPoints.length > 0 && (
+                        <div className={`my-8 p-5 border-l-4 rounded-r-2xl ${currTheme.keyPointsBg}`}>
+                          <h4 className={`text-xs font-bold uppercase tracking-wider mb-2.5 ${currTheme.keyPointsTitle}`}>
+                            {lang === 'fr' ? 'Points Clés & Synthèse du Module' : 'النقاط الجوهرية والملخص الأكاديمي'}
+                          </h4>
+                          <ul className="space-y-2 text-sm sm:text-base">
+                            {pageData.keyPoints.map((point, idx) => (
+                              <li key={idx} className="flex items-start gap-2">
+                                <span className={`font-bold shrink-0 ${currTheme.keyPointsBullet}`}>◆</span>
+                                <span>{point}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </>
                   )}
 
                   {/* Page Footer */}
