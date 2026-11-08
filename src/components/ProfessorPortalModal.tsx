@@ -32,14 +32,14 @@ import {
   Loader2,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { generateDefaultCoverSvg } from '../utils/storage';
 import { saveBookPdf, compressCoverImage, getPdfPageCount } from '../utils/pdfStorage';
 import { useAcademicStructure, registerDynamicAcademicUnit } from '../utils/academicStructureStorage';
 import { BookShareModal } from './BookShareModal';
 import { saveBookToFirestore, saveProfessorToFirestore, uploadFileToStorage } from '../services/firestoreService';
 if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/pdf.worker.min.mjs';
 }
 
 interface ProfessorPortalModalProps {

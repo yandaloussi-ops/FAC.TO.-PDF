@@ -35,10 +35,23 @@ import {
 } from 'lucide-react';
 import { setupDrmProtection } from '../utils/drmShield';
 
-// Initialize PDF.js worker with resilient global CDN to prevent 404 fake worker errors
+// Initialize PDF.js worker with resilient global CDN and permanent getter lock
+// This completely prevents other components (e.g. ProfessorPortalModal) from overwriting with a broken local URL
 if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/pdf.worker.min.mjs';
+  try {
+    Object.defineProperty(pdfjsLib.GlobalWorkerOptions, 'workerSrc', {
+      get() {
+        return 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/pdf.worker.min.mjs';
+      },
+      set(_val) {
+        // Intercept and ignore any attempt to override with local broken worker URL
+      },
+      configurable: true,
+    });
+  } catch {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/pdf.worker.min.mjs';
+  }
 }
 
 interface SecureReaderProps {
@@ -156,6 +169,22 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
 
     setPdfLoading(true);
     setPdfError(null);
+
+    // Enforce workerSrc right before loading to guarantee no interference
+    if (typeof window !== 'undefined') {
+      try {
+        Object.defineProperty(pdfjsLib.GlobalWorkerOptions, 'workerSrc', {
+          get() {
+            return 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/pdf.worker.min.mjs';
+          },
+          set(_val) {},
+          configurable: true,
+        });
+      } catch {
+        pdfjsLib.GlobalWorkerOptions.workerSrc =
+          'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/pdf.worker.min.mjs';
+      }
+    }
 
     // Resolve URL through serverless proxy when hosted on Firebase Storage to completely eliminate CORS blocks
     const effectiveUrl =
