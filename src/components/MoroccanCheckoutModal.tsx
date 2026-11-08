@@ -145,9 +145,10 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
         `📘 الكتاب: ${book?.title}\n` +
         `👤 الاسم الكامل: ${studentName.trim()}\n` +
         `📱 رقم هاتف الطالب: ${studentPhone.trim() || 'غير محدد'}\n` +
-        `📧 البريد الأكاديمي: ${studentEmail.trim()}\n` +
+        `📧 البريد الإلكتروني: ${studentEmail.trim()}\n` +
         `💰 المبلغ المدفوع: ${actualPrice} درهم\n` +
-        `🧾 رابط صورة وصل الدفع (Cash Plus / تحويل):\n${receiptUrl}`
+        `💳 طريقة الدفع: Cash Plus\n` +
+        `🧾 رابط صورة وصل Cash Plus:\n${receiptUrl}`
       );
 
       try {
@@ -174,7 +175,7 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
 
       // 8. استدعاء رد النجاح لفك قفل الكتاب محلياً في حساب الطالب
       if (onSuccess) {
-        onSuccess('Cash Plus / Virement Bancaire', { receiptUrl, studentPhone }, generatedDrmKey);
+        onSuccess('Cash Plus', { receiptUrl, studentPhone }, generatedDrmKey);
       }
 
       setSubmitted(true);
@@ -200,7 +201,7 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
           <>
             <div>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-semibold mb-2">
-                <CreditCard className="w-3.5 h-3.5" /> الدفع عبر Cash Plus / تحويل بنكي
+                <CreditCard className="w-3.5 h-3.5" /> الدفع عبر Cash Plus
               </span>
               <h3 className="text-xl font-bold text-white">تأكيد طلب اقتناء المطبوع</h3>
               <p className="text-xs text-slate-400 mt-1">
@@ -208,26 +209,20 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
               </p>
             </div>
 
-            {/* الحساب التجاري للإدارة */}
-            <div className="bg-slate-800/80 border border-amber-500/30 rounded-xl p-3.5 space-y-2 text-xs text-slate-200 my-4">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-700/60">
-                <span className="text-slate-400 font-medium flex items-center gap-1.5">
-                  <CreditCard className="w-3.5 h-3.5 text-amber-400" />
-                  رقم حساب Cash Plus:
+            {/* حساب الدفع الموحد: Cash Plus الحصري */}
+            <div className="bg-slate-800/80 border border-amber-500/40 rounded-xl p-4 text-xs text-slate-200 my-4 shadow-md">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-200 font-bold flex items-center gap-2 text-xs">
+                  <CreditCard className="w-4 h-4 text-amber-400 shrink-0" />
+                  رقم حساب Cash Plus الرسمي:
                 </span>
-                <span className="font-mono font-bold text-amber-400 text-xs dir-ltr tracking-wider select-all">
+                <span className="font-mono font-black text-amber-400 text-sm dir-ltr tracking-wider select-all bg-amber-500/15 px-3 py-1.5 rounded-lg border border-amber-500/40 shadow-inner">
                   835780030017922633209157
                 </span>
               </div>
-
-              {adminRib && (
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-slate-400 font-medium">الحساب البنكي الرسمي (RIB):</span>
-                  <span className="font-mono font-bold text-amber-300 text-xs dir-ltr tracking-wider select-all">
-                    {adminRib}
-                  </span>
-                </div>
-              )}
+              <p className="text-[11px] text-slate-400 mt-2.5 border-t border-slate-700/60 pt-2 leading-relaxed">
+                يرجى أداء المبلغ عبر أي وكالة Cash Plus أو مباشرة عبر تطبيق Cash Plus على الهاتف، ثم إرفاق صورة الوصل أدناه.
+              </p>
             </div>
 
             {/* نموذج إدخال معلومات الطالب ورفع الوصل */}
@@ -269,7 +264,7 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">صورة وصل الدفع (Cash Plus أو تحويل بنكي) *</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">صورة وصل الدفع (Cash Plus) *</label>
                 <input
                   type="file"
                   accept="image/*,.pdf"
@@ -278,7 +273,7 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
                   className="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 cursor-pointer"
                 />
                 <p className="text-[11px] text-slate-400 mt-1">
-                  يرجى التقاط صورة واضحة لوصل العملية الورقي أو لقطة شاشة للتحويل.
+                  يرجى التقاط صورة واضحة لوصل العملية الورقي أو لقطة شاشة للتحويل عبر تطبيق Cash Plus.
                 </p>
               </div>
 
