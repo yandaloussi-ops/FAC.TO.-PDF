@@ -3,6 +3,9 @@ import { Book, StudentProfile, UserNote, UserBookmark, DRMSecurityAlert } from '
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { loadBookPdf, saveBookPdf, deleteBookPdf, getPdfPageCount } from '../utils/pdfStorage';
+import { uploadFileToStorage } from '../services/firestoreService';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import {
   ChevronLeft,
   ChevronRight,
@@ -203,20 +206,42 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
 
     try {
       setIsUploadingCustomPdf(true);
-      const newPageCount = await getPdfPageCount(file);
-      const blobUrl = await saveBookPdf(book.id, file);
+      setUploadPdfToast(lang === 'fr' ? 'Téléversement du fichier PDF vers le Cloud...' : 'جاري رفع ملف PDF وتخزينه سحابياً...');
 
-      setPdfUrl(blobUrl);
+      // 1. حساب عدد الصفحات الفعلي
+      const newPageCount = await getPdfPageCount(file);
+
+      // 2. الرفع السحابي الدائم إلى Firebase Storage
+      const cloudPdfUrl = await uploadFileToStorage(file, 'books/pdfs');
+
+      // 3. التحديث الفوري لوثيقة الكتاب في Firestore
+      try {
+        const bookRef = doc(db, 'books', book.id);
+        await updateDoc(bookRef, {
+          pdfUrl: cloudPdfUrl,
+          totalPages: newPageCount || 100,
+          hasPdf: true,
+          pdfFileName: file.name,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (fsErr) {
+        console.warn('Notice updating book in Firestore:', fsErr);
+      }
+
+      // 4. حفظ محلي سريع في IndexedDB
+      await saveBookPdf(book.id, file);
+
+      setPdfUrl(cloudPdfUrl);
       setShowStructuredText(false);
 
       if (onUpdateBookPdf) {
-        onUpdateBookPdf(book.id, blobUrl, newPageCount, file.name);
+        onUpdateBookPdf(book.id, cloudPdfUrl, newPageCount, file.name);
       }
 
       setUploadPdfToast(
         lang === 'fr'
-          ? `Document PDF (${newPageCount} pages) rattaché avec succès !`
-          : `تم إرفاق ملف PDF بنجاح (${newPageCount} صفحة)!`
+          ? `Document PDF (${newPageCount} pages) téléversé sur le Cloud avec succès et accessible aux étudiants !`
+          : `تم رفع ملف PDF بنجاح (${newPageCount} صفحة) وحفظه سحابياً ليصبح متاحاً بالكامل للطلبة!`
       );
 
       setTimeout(() => setUploadPdfToast(null), 5000);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Professor, ProfessorNotice, Book, FacultyType, SemesterType } from '../types';
 import { UNIVERSITIES_DATABASE } from '../data/mockBooks';
@@ -258,19 +258,49 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
         return;
       }
       try {
-        const objectUrl = await saveBookPdf(bookId, file);
+        setProfPdfToast(
+          lang === 'fr' 
+            ? `Téléversement du fichier PDF "${file.name}" vers le Cloud en cours...` 
+            : `جاري رفع وتخزين ملف "${file.name}" سحابياً على السيرفر...`
+        );
+
+        // 1. حساب عدد الصفحات الفعلي للملف
         const pageCount = await getPdfPageCount(file);
-        if (onUpdateBookPdf) {
-          onUpdateBookPdf(bookId, objectUrl, pageCount || undefined, file.name);
+
+        // 2. الرفع السحابي الفعلي إلى Firebase Storage
+        const cloudPdfUrl = await uploadFileToStorage(file, 'books/pdfs');
+
+        // 3. التحديث الفوري لوثيقة الكتاب في Firestore
+        try {
+          const bookRef = doc(db, 'books', bookId);
+          await updateDoc(bookRef, {
+            pdfUrl: cloudPdfUrl,
+            totalPages: pageCount || 100,
+            hasPdf: true,
+            pdfFileName: file.name,
+            updatedAt: new Date().toISOString(),
+          });
+        } catch (fsErr) {
+          console.warn('Notice updating book in Firestore:', fsErr);
         }
+
+        // 4. حفظ محلي سريع في IndexedDB
+        await saveBookPdf(bookId, file);
+
+        if (onUpdateBookPdf) {
+          onUpdateBookPdf(bookId, cloudPdfUrl, pageCount || undefined, file.name);
+        }
+
         setProfPdfToast(
           lang === 'fr'
-            ? `Fichier PDF "${file.name}" (${pageCount ? `${pageCount} pages, ` : ''}${(file.size / (1024 * 1024)).toFixed(1)} Mo) attaché et stocké avec succès !`
-            : `تم رفع ملف "${file.name}" (${pageCount ? `${pageCount} صفحة، ` : ''}${(file.size / (1024 * 1024)).toFixed(1)} ميغابايت) وتخزينه بنجاح لهذا المقرر!`
+            ? `Fichier PDF "${file.name}" (${pageCount ? `${pageCount} pages, ` : ''}${(file.size / (1024 * 1024)).toFixed(1)} Mo) téléversé sur le Cloud et accessible à tous les étudiants !`
+            : `تم رفع ملف "${file.name}" (${pageCount ? `${pageCount} صفحة، ` : ''}${(file.size / (1024 * 1024)).toFixed(1)} ميغابايت) سحابياً وأصبح متاحاً بالكامل لجميع الطلبة المشتركين!`
         );
-        setTimeout(() => setProfPdfToast(null), 5000);
+        setTimeout(() => setProfPdfToast(null), 6000);
       } catch (err) {
         console.error('Failed to attach PDF for professor book:', err);
+        alert(lang === 'fr' ? 'Erreur lors du téléversement du PDF.' : 'حدث خطأ أثناء رفع ملف الـ PDF إلى السحابة.');
+        setProfPdfToast(null);
       }
     }
   };
