@@ -208,6 +208,14 @@ export default function App() {
         const search = window.location.search;
         let targetId: string | null = null;
 
+        // Secure URL gateway for Super Admin (?admin=true or ?manage=admin)
+        if (search.includes('admin') || search.includes('manage')) {
+          const params = new URLSearchParams(search);
+          if (params.get('admin') === 'true' || params.get('manage') === 'admin') {
+            setIsAdminAuthModalOpen(true);
+          }
+        }
+
         if (hash.includes('course=')) {
           const match = hash.match(/course=([^&]+)/);
           if (match) targetId = decodeURIComponent(match[1]);
@@ -1161,7 +1169,11 @@ export default function App() {
       )}
     </main>
       {/* Footer */}
-      <Footer lang={lang} />
+      <Footer
+        lang={lang}
+        onOpenAdmin={handleOpenAdmin}
+        onOpenDataProtectionModal={() => setIsDataProtectionModalOpen(true)}
+      />
 
       {/* Book Detail Modal with Commercial Checkout Linked to Admin Account */}
       {selectedBookForDetails && (
