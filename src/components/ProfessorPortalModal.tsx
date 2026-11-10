@@ -152,34 +152,73 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
       b.author.includes(professor.fullName)
   );
 
-  // Real-time synchronization with Firestore (paymentOrders & payouts)
-  const [liveOrders, setLiveOrders] = useState<any[]>([]);
+  // Real-time synchronization with Firestore (drm_keys & payouts)
+  // حصر العمليات الحسابية وقائمة الطلبة على المفاتيح النشطة الحقيقية فقط (واستبعاد أي حسابات وهمية أو تجريبية كـ فلان الفلاني)
+  const [liveAcquisitions, setLiveAcquisitions] = useState<any[]>([]);
   const [livePayouts, setLivePayouts] = useState<any[]>([]);
 
   useEffect(() => {
-    // 1. مزامنة فورية مع طلبات الشراء في فايربيس (paymentOrders)
-    const unsubOrders = onSnapshot(collection(db, 'paymentOrders'), (snapshot) => {
-      const allOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const profNameClean = (professor?.fullName || '').replace('Pr. ', '').trim().toLowerCase();
-      
-      const myOrders = allOrders.filter(ord => {
-        const authorMatch = ord.bookAuthor && profNameClean && (
-          ord.bookAuthor.toLowerCase().includes(profNameClean) ||
-          profNameClean.includes(ord.bookAuthor.toLowerCase().replace('pr. ', '').trim())
+    const profNameClean = (professor?.fullName || '').replace('Pr. ', '').trim().toLowerCase();
+
+    // 1. مزامنة فورية مع التراخيص النشطة الحقيقية (drm_keys)
+    const unsubDrm = onSnapshot(collection(db, 'drm_keys'), (snapshot) => {
+      const allKeys = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      // تصفية صارمة: تراخيص نشطة فقط + استبعاد البيانات الوهمية والتجريبية (فلان الفلاني / etudiant@univ.ac.ma)
+      const validActiveKeys = allKeys.filter(k => {
+        if (k.status === 'revoked') return false;
+        const studentName = (k.studentName || '').trim();
+        const studentEmail = (k.studentEmail || '').trim().toLowerCase();
+        if (studentName.includes('فلان الفلاني') || studentEmail === 'etudiant@univ.ac.ma') {
+          return false;
+        }
+        return true;
+      });
+
+      // مطابقة المؤلفات الخاصة بهذا الأستاذ
+      const myKeys = validActiveKeys.filter(k => {
+        const authorMatch = k.bookAuthor && profNameClean && (
+          k.bookAuthor.toLowerCase().includes(profNameClean) ||
+          profNameClean.includes(k.bookAuthor.toLowerCase().replace('pr. ', '').trim())
         );
         const titleMatch = profBooks.some(b => 
-          (b.id && ord.bookId && b.id === ord.bookId) || 
-          (b.title && ord.bookTitle && b.title.trim().toLowerCase() === ord.bookTitle.trim().toLowerCase())
+          (b.id && k.bookId && b.id === k.bookId) || 
+          (b.title && k.bookTitle && b.title.trim().toLowerCase() === k.bookTitle.trim().toLowerCase()) ||
+          (b.module && k.bookTitle && k.bookTitle.toLowerCase().includes(b.module.toLowerCase()))
         );
         return authorMatch || titleMatch;
       });
-      setLiveOrders(myOrders);
-    }, (err) => console.error("Error subscribing to prof orders:", err));
+
+      // تحويل المفاتيح النشطة إلى سجلات اقتناء دقيقة ومؤكدة
+      const mappedAcquisitions = myKeys.map(k => {
+        const matchingBook = profBooks.find(b => 
+          b.id === k.bookId || 
+          (b.title && k.bookTitle && b.title.trim().toLowerCase() === k.bookTitle.trim().toLowerCase())
+        ) || books.find(b => b.id === k.bookId || b.title === k.bookTitle);
+
+        const price = Number(k.price || k.bookPrice || matchingBook?.priceMAD || matchingBook?.price || 23);
+        const authorPart = Math.round(price * 0.80 * 100) / 100;
+
+        return {
+          id: k.id,
+          drmKey: k.key || k.code || k.id,
+          studentName: k.studentName || 'Étudiant',
+          studentEmail: k.studentEmail || '-',
+          studentPhone: k.studentPhone || '',
+          bookTitle: k.bookTitle || matchingBook?.title || 'Ouvrage',
+          bookPrice: price,
+          authorPart: authorPart,
+          status: 'active',
+          createdAt: k.createdAt || k.date
+        };
+      });
+
+      setLiveAcquisitions(mappedAcquisitions);
+    }, (err) => console.error("Error subscribing to drm keys:", err));
 
     // 2. مزامنة فورية مع التحويلات البنكية المنفذة (payouts)
     const unsubPayouts = onSnapshot(collection(db, 'payouts'), (snapshot) => {
       const allPayouts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const profNameClean = (professor?.fullName || '').replace('Pr. ', '').trim().toLowerCase();
       
       const myPays = allPayouts.filter(pay => {
         return (pay.professorId && professor?.id && pay.professorId === professor.id) ||
@@ -189,21 +228,16 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
     }, (err) => console.error("Error subscribing to prof payouts:", err));
 
     return () => {
-      unsubOrders();
+      unsubDrm();
       unsubPayouts();
     };
-  }, [professor?.fullName, professor?.id, profBooks]);
+  }, [professor?.fullName, professor?.id, profBooks, books]);
 
-  // الحسابات المالية الحية المتطابقة مع الإدارة
-  const effectiveSalesCount = liveOrders.length > 0 ? liveOrders.length : (professor.totalSalesCount || 0);
-  const effectiveGrossMAD = liveOrders.length > 0
-    ? liveOrders.reduce((sum, ord) => sum + (Number(ord.bookPrice) || 0), 0)
-    : (professor.totalEarningsMAD ? professor.totalEarningsMAD / 0.8 : effectiveSalesCount * 23);
-  const effectiveRoyaltiesMAD = liveOrders.length > 0
-    ? Math.round(effectiveGrossMAD * 0.80 * 100) / 100
-    : (professor.totalEarningsMAD || Math.round(effectiveSalesCount * 18.4 * 100) / 100);
-
-  const effectivePaidMAD = livePayouts.reduce((sum, pay) => sum + (Number(pay.amountMAD) || 0), (professor.paidAmountMAD || 0));
+  // الحسابات المالية الحية المتطابقة 100% مع إدارة المنصة (مبنية حصراً على المفاتيح النشطة الفعالة)
+  const effectiveSalesCount = liveAcquisitions.length;
+  const effectiveGrossMAD = liveAcquisitions.reduce((sum, item) => sum + (Number(item.bookPrice) || 0), 0);
+  const effectiveRoyaltiesMAD = Math.round(effectiveGrossMAD * 0.80 * 100) / 100;
+  const effectivePaidMAD = livePayouts.reduce((sum, pay) => sum + (Number(pay.amountMAD) || 0), (Number(professor.paidAmountMAD) || 0));
   const effectivePendingPayoutMAD = Math.max(0, Math.round((effectiveRoyaltiesMAD - effectivePaidMAD) * 100) / 100);
 
   const handleSimulatedFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -809,55 +843,63 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
               </div>
             </div>
 
-            {/* Liste des étudiants ayant acquis les polycopiés de l'enseignant */}
-            {liveOrders.length > 0 && (
-              <div className="p-4 bg-stone-50 border border-stone-200 rounded-2xl">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <h4 className="font-bold text-xs text-stone-900">
-                      {lang === 'fr' ? 'Étudiants Ayant Acquis vos Polycopiés' : 'الطلبة الذين اقتنوا مطبوعاتك مؤخراً'}
-                    </h4>
-                  </div>
-                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
-                    {liveOrders.length} {lang === 'fr' ? 'acquisitions' : 'عمليات اقتناء'}
-                  </span>
+            {/* Liste des étudiants ayant acquis les polycopiés de l'enseignant (Licences DRM Actives Uniquement) */}
+            <div className="p-4 bg-stone-50 border border-stone-200 rounded-2xl">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <h4 className="font-bold text-xs text-stone-900">
+                    {lang === 'fr' ? 'Étudiants Ayant Acquis vos Polycopiés (Licences Actives)' : 'الطلبة الحاصلون على تراخيص نشطة لمطبوعاتك'}
+                  </h4>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="border-b border-stone-200 text-stone-600">
-                        <th className="py-2 px-3">ÉTUDIANT</th>
-                        <th className="py-2 px-3">LIVRE</th>
-                        <th className="py-2 px-3">MONTANT LIVRE</th>
-                        <th className="py-2 px-3">DROIT AUTEUR (80%)</th>
-                        <th className="py-2 px-3">STATUT</th>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                  {liveAcquisitions.length} {lang === 'fr' ? 'acquisitions actives' : 'تراخيص نشطة'}
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-stone-200 text-stone-600">
+                      <th className="py-2 px-3">ÉTUDIANT</th>
+                      <th className="py-2 px-3">LIVRE</th>
+                      <th className="py-2 px-3">MONTANT LIVRE</th>
+                      <th className="py-2 px-3">DROIT AUTEUR (80%)</th>
+                      <th className="py-2 px-3">STATUT</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {liveAcquisitions.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-6 text-center text-stone-400 font-medium">
+                          {lang === 'fr' 
+                            ? 'Aucune acquisition d\'étudiant confirmée par clé active pour le moment' 
+                            : 'لا توجد عمليات اقتناء مؤكدة بمفاتيح نشطة حتى الآن'}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {liveOrders.map((ord) => (
+                    ) : (
+                      liveAcquisitions.map((ord) => (
                         <tr key={ord.id} className="border-b border-stone-200/60 hover:bg-white/80">
                           <td className="py-2 px-3 font-semibold text-stone-900">
                             <div>{ord.studentName || 'Étudiant'}</div>
-                            <div className="text-[10px] text-stone-500">{ord.studentEmail || '-'}</div>
+                            <div className="text-[10px] text-stone-500">{ord.studentEmail || ord.studentPhone || '-'}</div>
                           </td>
                           <td className="py-2 px-3 text-stone-800 font-medium">{ord.bookTitle || '-'}</td>
-                          <td className="py-2 px-3 font-mono font-bold text-stone-800">{ord.bookPrice || 23} DH</td>
+                          <td className="py-2 px-3 font-mono font-bold text-stone-800">{ord.bookPrice} DH</td>
                           <td className="py-2 px-3 font-mono font-bold text-emerald-700">
-                            {(ord.authorPart ?? (Number(ord.bookPrice || 23) * 0.80)).toFixed(2)} DH
+                            {ord.authorPart.toFixed(2)} DH
                           </td>
                           <td className="py-2 px-3">
                             <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                              ✔ Validé
+                              ✔ Validé (DRM Actif)
                             </span>
                           </td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
-            )}
+            </div>
 
             {/* Bank RIB Coordination Section */}
             <div className="p-4 bg-stone-50 border border-stone-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">

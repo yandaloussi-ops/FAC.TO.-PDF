@@ -16,7 +16,7 @@ import {
   saveProfessorToFirestore,
   recordTransactionInFirestore
 } from '../services/firestoreService';
-import { doc, updateDoc, deleteDoc, collection, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, deleteDoc, collection, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?: string; onToggleLang?: () => void }> = ({ books = [], professors = [], lang = 'fr', onToggleLang }) => {
@@ -99,14 +99,66 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
   const displayBooks = internalBooks.length > 0 ? internalBooks : books;
   const displayProfessors = internalProfessors.length > 0 ? internalProfessors : professors;
 
-  // Calculs Financiers Globaux (Dynamiques selon les commandes réelles)
-  const totalGrossFromOrders = paymentOrders.reduce((sum, ord) => sum + (Number(ord.bookPrice) || 0), 0);
-  const totalGrossFromTx = transactions.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
-  const totalGross = Math.max(totalGrossFromOrders, totalGrossFromTx);
-  const platformPart = totalGross * 0.20;
-  const authorsPart = totalGross * 0.80;
+  // 1. Licences DRM Actives : Source unique et souveraine de vérité financière (exclut les révoquées et les données fictives / فلان الفلاني)
+  const activeDrmCodes = drmCodes.filter(c => 
+    c.status !== 'revoked' &&
+    !c.studentName?.includes('فلان الفلاني') &&
+    c.studentEmail !== 'etudiant@univ.ac.ma'
+  );
+
+  // 2. Calculs Financiers Globaux (Strictement calculés à partir des clés DRM actives vérifiées)
+  const totalGross = activeDrmCodes.reduce((sum, c) => {
+    const book = internalBooks.find(b => b.id === c.bookId || b.title === c.bookTitle);
+    const price = Number(c.price || c.bookPrice || book?.priceMAD || book?.price || 23);
+    return sum + price;
+  }, 0);
+  const platformPart = Math.round(totalGross * 0.20 * 100) / 100;
+  const authorsPart = Math.round(totalGross * 0.80 * 100) / 100;
   const totalPaidToProfessors = payouts.reduce((sum, p) => sum + (Number(p.amountMAD) || 0), 0);
-  const totalPendingPayouts = Math.max(0, authorsPart - totalPaidToProfessors);
+  const totalPendingPayouts = Math.max(0, Math.round((authorsPart - totalPaidToProfessors) * 100) / 100);
+
+  // 3. Liste Filtrée : Uniquement les étudiants disposant d'au moins un مفتاح نشط (Active DRM Key)
+  const activeStudentsWithKeys = React.useMemo(() => {
+    const studentMap = new Map<string, any>();
+
+    activeDrmCodes.forEach((c) => {
+      const rawEmail = (c.studentEmail || '').trim().toLowerCase();
+      const rawPhone = (c.studentPhone || '').replace(/\D/g, '');
+      const studentIdentifier = rawEmail || (rawPhone ? `phone_${rawPhone}` : `id_${c.studentId || c.id}`);
+
+      // Recherche correspondante dans la collection students
+      const matchedProfile = students.find(s => {
+        const sEmail = (s.email || '').trim().toLowerCase();
+        const sPhone = (s.phone || '').replace(/\D/g, '');
+        if (rawEmail && sEmail && rawEmail === sEmail) return true;
+        if (rawPhone && sPhone && (rawPhone === sPhone || rawPhone.endsWith(sPhone.slice(-8)) || sPhone.endsWith(rawPhone.slice(-8)))) return true;
+        if (c.studentId && s.id && c.studentId === s.id) return true;
+        return false;
+      });
+
+      if (!studentMap.has(studentIdentifier)) {
+        studentMap.set(studentIdentifier, {
+          id: matchedProfile?.id || c.studentId || c.id,
+          docId: matchedProfile?.id || null,
+          fullName: matchedProfile?.fullName || matchedProfile?.name || c.studentName || 'Étudiant',
+          name: matchedProfile?.name || matchedProfile?.fullName || c.studentName || 'Étudiant',
+          email: matchedProfile?.email || c.studentEmail || '-',
+          phone: matchedProfile?.phone || c.studentPhone || '',
+          status: matchedProfile?.status || 'active',
+          keys: [c],
+          acquiredBookTitles: [c.bookTitle || 'Livre']
+        });
+      } else {
+        const existing = studentMap.get(studentIdentifier);
+        existing.keys.push(c);
+        if (c.bookTitle && !existing.acquiredBookTitles.includes(c.bookTitle)) {
+          existing.acquiredBookTitles.push(c.bookTitle);
+        }
+      }
+    });
+
+    return Array.from(studentMap.values());
+  }, [activeDrmCodes, students]);
 
   // Helper date formatter
   const formatDate = (val: any) => {
@@ -117,30 +169,31 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
     return isNaN(d.getTime()) ? '-' : d.toLocaleDateString('fr-FR');
   };
 
-  // Helper pour calculer les statistiques d'un professeur en temps réel
+  // Helper pour calculer les statistiques d'un professeur en temps réel (Strictement basé sur les clés DRM actives)
   const getProfStats = (p: any) => {
-    // Commandes liées à ce professeur par nom d'auteur ou titre
-    const profOrders = paymentOrders.filter(ord => {
-      const authorMatch = ord.bookAuthor && p.fullName && ord.bookAuthor.toLowerCase().includes(p.fullName.toLowerCase());
-      const titleMatch = ord.bookTitle && p.module && ord.bookTitle.toLowerCase().includes(p.module.toLowerCase());
-      const bookIdMatch = internalBooks.some(b => 
-        (b.id === ord.bookId || b.title === ord.bookTitle) && 
-        (b.author === p.fullName || b.professorId === p.id)
-      );
-      return authorMatch || titleMatch || bookIdMatch;
+    // Clés DRM actives relatives aux ouvrages de cet enseignant
+    const profActiveKeys = activeDrmCodes.filter(c => {
+      const book = internalBooks.find(b => b.id === c.bookId || b.title === c.bookTitle);
+      const authorMatch = (c.bookAuthor && p.fullName && c.bookAuthor.toLowerCase().includes(p.fullName.toLowerCase())) ||
+                          (book?.author && p.fullName && book.author.toLowerCase().includes(p.fullName.toLowerCase())) ||
+                          (book?.professorId && book.professorId === p.id);
+      const titleMatch = (c.bookTitle && p.module && c.bookTitle.toLowerCase().includes(p.module.toLowerCase())) ||
+                         (book?.module && p.module && book.module.toLowerCase().includes(p.module.toLowerCase()));
+      return Boolean(authorMatch || titleMatch);
     });
 
-    const realOrdersCount = profOrders.length;
-    const salesCount = realOrdersCount > 0 ? realOrdersCount : (p.totalSalesCount || 0);
-    const grossMAD = realOrdersCount > 0 
-      ? profOrders.reduce((sum, ord) => sum + (Number(ord.bookPrice) || 0), 0)
-      : (p.totalEarningsMAD ? p.totalEarningsMAD / 0.8 : salesCount * 23);
-    const royaltiesMAD = realOrdersCount > 0 ? (grossMAD * 0.8) : (p.totalEarningsMAD || (salesCount * 18.4));
+    const salesCount = profActiveKeys.length;
+    const grossMAD = profActiveKeys.reduce((sum, c) => {
+      const book = internalBooks.find(b => b.id === c.bookId || b.title === c.bookTitle);
+      const price = Number(c.price || c.bookPrice || book?.priceMAD || book?.price || 23);
+      return sum + price;
+    }, 0);
+    const royaltiesMAD = Math.round(grossMAD * 0.80 * 100) / 100;
 
     // Virements déjà effectués pour ce professeur
     const profPayouts = payouts.filter(pay => pay.professorId === p.id || pay.professorName === p.fullName);
-    const paidMAD = profPayouts.reduce((sum, pay) => sum + (Number(pay.amountMAD) || 0), (p.paidAmountMAD || 0));
-    const pendingMAD = Math.max(0, royaltiesMAD - paidMAD);
+    const paidMAD = profPayouts.reduce((sum, pay) => sum + (Number(pay.amountMAD) || 0), (Number(p.paidAmountMAD) || 0));
+    const pendingMAD = Math.max(0, Math.round((royaltiesMAD - paidMAD) * 100) / 100);
 
     return { salesCount, grossMAD, royaltiesMAD, paidMAD, pendingMAD, profPayouts };
   };
@@ -150,7 +203,7 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
     try {
       const newStatus = currentStatus === 'suspended' ? 'active' : 'suspended';
       const userRef = doc(db, collectionName, userId);
-      await updateDoc(userRef, { status: newStatus, updatedAt: new Date().toISOString() });
+      await setDoc(userRef, { status: newStatus, updatedAt: new Date().toISOString() }, { merge: true });
     } catch (err) {
       console.error("Error toggling user status:", err);
       alert("Erreur lors de la mise à jour du statut (تجميد / تنشيط).");
@@ -170,13 +223,31 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
   };
 
   // 3. Bouton Action: Supprimer Définitivement (Corbeille / محو نهائي)
-  const handleDeleteItem = async (type: 'student' | 'prof' | 'book' | 'drm', id: string) => {
+  const handleDeleteItem = async (type: 'student' | 'prof' | 'book' | 'drm' | 'order', id: string) => {
     if (!window.confirm("Êtes-vous sûr de vouloir supprimer définitivement cet élément (سلة المهملات) ؟\nCette action est irréversible.")) return;
     try {
-      if (type === 'student') await deleteDoc(doc(db, 'students', id));
+      if (type === 'student') {
+        try {
+          await deleteDoc(doc(db, 'students', id));
+        } catch (e) {
+          console.warn("Could not delete from students collection:", e);
+        }
+        // Supprimer également les clés DRM associées pour un nettoyage complet
+        const studentObj = activeStudentsWithKeys.find(s => s.id === id || s.docId === id);
+        if (studentObj?.keys) {
+          for (const k of studentObj.keys) {
+            try {
+              await deleteDoc(doc(db, 'drm_keys', k.id));
+            } catch (kErr) {
+              console.warn("Could not delete linked DRM key:", kErr);
+            }
+          }
+        }
+      }
       if (type === 'prof') await deleteDoc(doc(db, 'professors', id));
       if (type === 'book') await deleteDoc(doc(db, 'books', id));
       if (type === 'drm') await deleteDoc(doc(db, 'drm_keys', id));
+      if (type === 'order') await deleteDoc(doc(db, 'paymentOrders', id));
     } catch (err) {
       console.error("Error deleting item:", err);
       alert("Erreur lors de la suppression de l'élément.");
@@ -258,9 +329,9 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
             <span className="text-[10px] text-stone-400">Déjà viré: {totalPaidToProfessors.toFixed(2)} DH</span>
           </div>
           <div className="p-4 bg-stone-50 border border-stone-200 rounded-lg">
-            <span className="text-xs text-stone-500 font-medium">Enseignants & Étudiants</span>
-            <p className="text-xl font-bold text-stone-800 mt-1">{displayProfessors.length} / {students.length}</p>
-            <span className="text-[10px] text-stone-400">{displayProfessors.length} Enseignants · {students.length} Étudiants</span>
+            <span className="text-xs text-stone-500 font-medium">Enseignants & Étudiants Actifs</span>
+            <p className="text-xl font-bold text-stone-800 mt-1">{displayProfessors.length} / {activeStudentsWithKeys.length}</p>
+            <span className="text-[10px] text-stone-400">{displayProfessors.length} Enseignants · {activeStudentsWithKeys.length} Étudiants avec clé active</span>
           </div>
         </div>
       </div>
@@ -272,7 +343,7 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
           { id: 'drm', label: 'Licences DRM & Accès', count: drmCodes.length, icon: Key },
           { id: 'finance', label: 'Compte Commercial & Encaissement', count: Math.max(paymentOrders.length, transactions.length), icon: Building },
           { id: 'profs', label: 'Comptes des Enseignants', count: displayProfessors.length, icon: Users },
-          { id: 'students', label: 'Comptes des Étudiants', count: students.length, icon: GraduationCap },
+          { id: 'students', label: 'Comptes des Étudiants', count: activeStudentsWithKeys.length, icon: GraduationCap },
           { id: 'virements', label: 'Relevé des Virements & Droits', count: payouts.length, icon: ArrowLeftRight },
           { id: 'faculties', label: 'Facultés & Départements', count: 0, icon: Building2 },
         ].map((tab) => {
@@ -524,19 +595,29 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
                             )}
                           </td>
                           <td className="p-3">
-                            {ord.studentPhone && (
-                              <a
-                                href={`https://wa.me/${ord.studentPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
-                                  `Bonjour ${ord.studentName || ''}, concernant votre reçu pour le livre ${ord.bookTitle || ''}:`
-                                )}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300 rounded-lg text-xs font-bold transition-colors"
+                            <div className="flex items-center gap-1.5">
+                              {ord.studentPhone && (
+                                <a
+                                  href={`https://wa.me/${ord.studentPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
+                                    `Bonjour ${ord.studentName || ''}, concernant votre reçu pour le livre ${ord.bookTitle || ''}:`
+                                  )}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300 rounded-lg text-xs font-bold transition-colors"
+                                  title="Contacter sur WhatsApp"
+                                >
+                                  <Phone size={12} />
+                                  <span>WhatsApp</span>
+                                </a>
+                              )}
+                              <button
+                                onClick={() => handleDeleteItem('order', ord.id)}
+                                className="p-1.5 text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                                title="Supprimer cette commande définitivement (سلة المهملات)"
                               >
-                                <Phone size={12} />
-                                <span>WhatsApp</span>
-                              </a>
-                            )}
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -645,14 +726,14 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
         )}
 
         {/* ========================================================= */}
-        {/* Tab 5: Comptes des Étudiants (WITH GELER & CORBEILLE) */}
+        {/* Tab 5: Comptes des Étudiants (STRICTEMENT CEUX AVEC CLÉ ACTIVE) */}
         {/* ========================================================= */}
         {activeTab === 'students' && (
           <div>
             <div className="flex justify-between items-center mb-4">
               <div>
-                <h2 className="text-lg font-bold">Comptes des Étudiants Inscrits</h2>
-                <p className="text-xs text-stone-500">Gérez les profils étudiants : bouton de tjemid (تجميد الحساب) et bouton corbeille (سلة المهملات).</p>
+                <h2 className="text-lg font-bold">Comptes des Étudiants Actifs (Détenteurs de Clés DRM)</h2>
+                <p className="text-xs text-stone-500">Affichage exclusif des étudiants disposant d'un مفتاح نشط (ترخيص غير ملغى) لضمان دقة الحسابات المالية 100%.</p>
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -662,16 +743,16 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
                     <th className="p-3">ÉTUDIANT</th>
                     <th className="p-3">EMAIL ACADÉMIQUE</th>
                     <th className="p-3">TÉLÉPHONE / WHATSAPP</th>
-                    <th className="p-3">LIVRES DÉBLOQUÉS</th>
+                    <th className="p-3">LIVRES DÉBLOQUÉS (CLÉS ACTIVES)</th>
                     <th className="p-3">STATUT</th>
                     <th className="p-3">ACTIONS (CONTRÔLE)</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {students.length === 0 ? (
-                    <tr><td colSpan={6} className="p-4 text-center text-stone-400">Aucun profil étudiant enregistré</td></tr>
+                  {activeStudentsWithKeys.length === 0 ? (
+                    <tr><td colSpan={6} className="p-6 text-center text-stone-400">Aucun étudiant avec clé DRM active enregistré</td></tr>
                   ) : (
-                    students.map((s) => {
+                    activeStudentsWithKeys.map((s) => {
                       const isSuspended = s.status === 'suspended';
                       return (
                         <tr key={s.id} className={`border-b border-stone-100 hover:bg-stone-50 ${isSuspended ? 'bg-amber-50/40' : ''}`}>
@@ -695,7 +776,16 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
                               <span className="text-stone-400">-</span>
                             )}
                           </td>
-                          <td className="p-3 font-mono font-bold text-amber-700">{s.acquiredBookIds?.length || 0} livres</td>
+                          <td className="p-3">
+                            <span className="inline-flex items-center gap-1 font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full text-xs">
+                              {s.keys?.length || 1} licence(s) active(s)
+                            </span>
+                            {s.acquiredBookTitles && s.acquiredBookTitles.length > 0 && (
+                              <div className="text-[11px] text-stone-600 mt-1 max-w-xs truncate" title={s.acquiredBookTitles.join(', ')}>
+                                📘 {s.acquiredBookTitles.join(', ')}
+                              </div>
+                            )}
+                          </td>
                           <td className="p-3">
                             <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                               isSuspended ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
@@ -707,7 +797,7 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
                             <div className="flex items-center gap-1.5">
                               {/* Bouton 1: Geler / Débloquer l'étudiant */}
                               <button
-                                onClick={() => handleToggleUserStatus('students', s.id, s.status || 'active')}
+                                onClick={() => handleToggleUserStatus('students', s.docId || s.id, s.status || 'active')}
                                 className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer ${
                                   isSuspended
                                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
@@ -721,7 +811,7 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
 
                               {/* Bouton 2: Supprimer Définitivement (سلة المهملات 🗑️) */}
                               <button 
-                                onClick={() => handleDeleteItem('student', s.id)} 
+                                onClick={() => handleDeleteItem('student', s.docId || s.id)} 
                                 className="p-1.5 text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition-colors cursor-pointer" 
                                 title="Supprimer définitivement (سلة المهملات)"
                               >
