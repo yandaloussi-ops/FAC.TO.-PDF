@@ -18,14 +18,9 @@ import {
   Mail,
   RefreshCw,
   Send,
-  Sparkles,
-  GraduationCap,
   Clock,
 } from 'lucide-react';
-import {
-  getStoredAdminPin,
-  OFFICIAL_SUPER_ADMIN_EMAIL,
-} from '../utils/storage';
+import { getStoredAdminPin } from '../utils/storage';
 
 interface AdminAuthModalProps {
   isOpen: boolean;
@@ -40,7 +35,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
   onClose,
   lang,
 }) => {
-  // Mode: 'otp' (Official University Email Verification) | 'passcode' (Direct Sovereign Passcode)
+  // Mode: 'otp' (Official Admin Email OTP Verification) | 'passcode' (Direct Sovereign Passcode)
   const [authMode, setAuthMode] = useState<'otp' | 'passcode'>('otp');
 
   // OTP flow states
@@ -61,7 +56,6 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const targetAdminEmail = OFFICIAL_SUPER_ADMIN_EMAIL || 'yandaloussi@uae.ac.ma';
   const currentAdminPin = getStoredAdminPin();
 
   // Reset states on modal open
@@ -95,7 +89,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // 1. Send OTP to official University Email (yandaloussi@uae.ac.ma)
+  // 1. Send OTP to authorized Admin Email via backend API
   const handleSendOtp = async () => {
     setError(null);
     setSuccessMsg(null);
@@ -116,18 +110,17 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
         setOtpTimeLeft(600); // 10 minutes
         setSuccessMsg(
           lang === 'fr'
-            ? `Code secret envoyé avec succès à ${targetAdminEmail}. Veuillez vérifier votre boîte de réception universitaire.`
-            : `تم إرسال رمز التحقق بنجاح إلى ${targetAdminEmail}. يرجى مراجعة علبة البريد الجامعي الخاصة بك.`
+            ? 'Code secret envoyé avec succès vers la boîte de réception autorisée.'
+            : 'تم إرسال رمز الأمان السري بنجاح إلى البريد المعتمد لإدارة المنصة.'
         );
       } else {
-        throw new Error(data.error || 'Erreur d\'envoi');
+        throw new Error(data.error || "Erreur d'envoi");
       }
     } catch (err: any) {
-      // In case serverless endpoint is offline during development or offline test:
       setError(
         lang === 'fr'
-          ? `Impossible d'acheminer le code par e-mail actuellement. Vous pouvez utiliser votre code secret direct dans l'onglet ci-contre.`
-          : `تعذر الاتصال بخدمة البريد حالياً. يمكنك استخدام القن السيادي المباشر من التبويب المجاور.`
+          ? "Impossible d'acheminer le code par e-mail actuellement. Vous pouvez utiliser votre code secret direct dans l'onglet ci-contre."
+          : 'تعذر الاتصال بخدمة البريد حالياً. يمكنك استخدام القن المباشر للإدارة من التبويب المجاور.'
       );
     } finally {
       setIsSendingOtp(false);
@@ -226,8 +219,8 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
       if (clean === currentAdminPin) {
         setSuccessMsg(
           lang === 'fr'
-            ? 'Accès autorisé. Bienvenue Monsieur le Professeur.'
-            : 'تم التحقق بنجاح. أهلاً بك أستاذي الكريم.'
+            ? 'Accès autorisé. Session administrateur ouverte.'
+            : 'تم تأكيد هوية المشرف بنجاح. جاري فتح لوحة الإدارة.'
         );
         setTimeout(() => {
           onSuccess();
@@ -257,7 +250,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
     <div className="fixed inset-0 z-50 bg-stone-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-stone-200 animate-in fade-in zoom-in-95 my-8">
         
-        {/* Header with Security Badge */}
+        {/* Header (Completely Anonymous & Professional) */}
         <div className="flex items-center justify-between pb-4 border-b border-stone-200 mb-5">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-amber-50 text-amber-700 rounded-2xl border border-amber-200 shadow-xs">
@@ -266,16 +259,16 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base sm:text-lg font-black text-stone-900">
-                  {lang === 'fr' ? 'Accès Super-Administrateur' : 'بوابة المشرف العام للمنصة'}
+                  {lang === 'fr' ? 'Console d\'Administration' : 'بوابة الإدارة المركزية'}
                 </h2>
                 <span className="text-[10px] font-mono font-black text-amber-950 bg-amber-300 px-2 py-0.5 rounded-full border border-amber-400">
-                  OFFICIEL
+                  {lang === 'fr' ? 'CONFIDENTIEL' : 'سري'}
                 </span>
               </div>
               <p className="text-xs text-stone-500 mt-0.5">
                 {lang === 'fr'
-                  ? 'Pr. Yassine Al-Andaloussi · Faculté des Sciences Juridiques'
-                  : 'الأستاذ ياسين الأندلسي · جامعة عبد المالك السعدي'}
+                  ? 'Système de gestion interne · Accès sécurisé'
+                  : 'نظام الإدارة المركزي · الدخول محمي ومشفر'}
               </p>
             </div>
           </div>
@@ -288,14 +281,16 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
           </button>
         </div>
 
-        {/* Identity Verification Notice */}
+        {/* Identity Verification Notice (No personal info displayed) */}
         <div className="p-3.5 bg-gradient-to-r from-amber-50/80 to-stone-50 rounded-2xl border border-amber-200 text-xs text-stone-700 mb-5 space-y-1">
           <div className="flex items-center gap-1.5 font-bold text-amber-950">
             <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>{lang === 'fr' ? 'Accès Strictement Réservé' : 'حساب محمي مرتبط حصرياً بالمشرف العام'}</span>
+            <span>{lang === 'fr' ? 'Authentification Sécurisée' : 'مصادقة إدارية محمية ومشفرة'}</span>
           </div>
-          <p className="text-[11px] text-stone-600 leading-relaxed font-mono">
-            {targetAdminEmail}
+          <p className="text-[11px] text-stone-600 leading-relaxed">
+            {lang === 'fr'
+              ? 'Cet espace est strictement réservé à la régie administrative de la plateforme.'
+              : 'هذا الفضاء محمي ومخصص حصرياً للمشرف على المنصة.'}
           </p>
         </div>
 
@@ -341,13 +336,14 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
               <div className="space-y-4">
                 <p className="text-xs text-stone-600 leading-relaxed">
                   {lang === 'fr'
-                    ? `Cliquez ci-dessous pour recevoir un code d'autorisation unique à 6 chiffres sur votre adresse officielle (${targetAdminEmail}).`
-                    : `اضغط على الزر أدناه لتوليد وإرسال رمز أمان سري مؤقت (مكون من 6 أرقام) حصرياً إلى بريدك الجامعي المعتمد:`}
+                    ? 'Cliquez ci-dessous pour générer et expédier un code d\'autorisation unique à 6 chiffres vers la boîte de messagerie administrateur configurée.'
+                    : 'اضغط على الزر أدناه لتوليد وإرسال رمز أمان سري مؤقت (مكون من 6 أرقام) إلى البريد الإداري المعتمد للمنصة:'}
                 </p>
 
                 <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 text-center">
-                  <div className="text-xs font-mono font-bold text-stone-900">
-                    {targetAdminEmail}
+                  <div className="text-xs font-mono font-bold text-stone-700 flex items-center justify-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <span>{lang === 'fr' ? 'Messagerie d\'administration vérifiée' : 'البريد الإداري المعتمد للمنصة'}</span>
                   </div>
                 </div>
 
@@ -372,7 +368,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
                   <span>
                     {isSendingOtp
                       ? (lang === 'fr' ? 'Génération et envoi du code...' : 'جارِ إرسال الرمز إلى بريدك...')
-                      : (lang === 'fr' ? 'Envoyer le Code OTP au Courriel' : 'إرسال رمز التحقق إلى بريدي الجامعي')}
+                      : (lang === 'fr' ? 'Envoyer le Code OTP au Courriel' : 'إرسال رمز التحقق إلى البريد الإداري')}
                   </span>
                 </button>
               </div>
@@ -385,8 +381,8 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
                   </div>
                   <p className="text-[11px] text-emerald-800/90">
                     {lang === 'fr'
-                      ? `Consultez votre messagerie (${targetAdminEmail}) et saisissez le code reçu.`
-                      : `يرجى فتح علبة بريدك الجامعي (${targetAdminEmail}) وكتابة الرمز المكون من 6 أرقام.`}
+                      ? 'Consultez votre messagerie et saisissez le code reçu à 6 chiffres.'
+                      : 'يرجى فتح علبة بريدك الإداري وإدخال الرمز المكون من 6 أرقام.'}
                   </p>
                 </div>
 
@@ -461,15 +457,15 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
           <form onSubmit={handlePasscodeSubmit} className="space-y-4">
             <p className="text-xs text-stone-600 leading-relaxed">
               {lang === 'fr'
-                ? 'Accès immédiat par clé secrète souveraine de l\'administrateur.'
-                : 'الدخول الفوري المباشر عبر القن السري السيادي الخاص بالمشرف العام.'}
+                ? 'Accès immédiat par clé secrète de la régie administrative.'
+                : 'الدخول الفوري المباشر عبر القن السري الخاص بالإدارة.'}
             </p>
 
             <div>
               <label className="block text-xs font-bold text-stone-700 mb-1.5 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
                   <KeyRound className="w-3.5 h-3.5 text-amber-600" />
-                  <span>{lang === 'fr' ? 'القن السري السيادي' : 'القن السري السيادي'}</span>
+                  <span>{lang === 'fr' ? 'القن السري للإدارة' : 'القن السري للإدارة'}</span>
                 </span>
               </label>
               <div className="relative">
