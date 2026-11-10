@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -17,12 +17,14 @@ import {
   LockKeyhole,
   Mail,
   RefreshCw,
+  Send,
+  Sparkles,
+  GraduationCap,
+  Clock,
 } from 'lucide-react';
 import {
   getStoredAdminPin,
-  saveStoredAdminPin,
-  getStoredAdminRecoveryEmail,
-  PLATFORM_GMAIL,
+  OFFICIAL_SUPER_ADMIN_EMAIL,
 } from '../utils/storage';
 
 interface AdminAuthModalProps {
@@ -38,31 +40,175 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
   onClose,
   lang,
 }) => {
-  const [view, setView] = useState<'login' | 'recovery'>('login');
+  // Mode: 'otp' (Official University Email Verification) | 'passcode' (Direct Sovereign Passcode)
+  const [authMode, setAuthMode] = useState<'otp' | 'passcode'>('otp');
+
+  // OTP flow states
+  const [otpStep, setOtpStep] = useState<'idle' | 'sent'>('idle');
+  const [enteredOtp, setEnteredOtp] = useState('');
+  const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [otpTimeLeft, setOtpTimeLeft] = useState(600); // 10 minutes countdown
+
+  // Passcode flow states
   const [passcode, setPasscode] = useState('');
   const [showPasscode, setShowPasscode] = useState(false);
+  const [attemptsLeft, setAttemptsLeft] = useState(5);
+  const [isLockedOut, setIsLockedOut] = useState(false);
+
+  // Common status feedback
+  const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [attemptsLeft, setAttemptsLeft] = useState(5);
-  const [isVerifying, setIsVerifying] = useState(false);
 
-  // Recovery flow states
-  const [recoveryEmail, setRecoveryEmail] = useState('');
-  const [recoveryStep, setRecoveryStep] = useState<'email' | 'new_pin'>('email');
-  const [generatedRecoveryOtp, setGeneratedRecoveryOtp] = useState('');
-  const [enteredRecoveryOtp, setEnteredRecoveryOtp] = useState('');
-  const [newAdminPin, setNewAdminPin] = useState('');
-  const [confirmNewAdminPin, setConfirmNewAdminPin] = useState('');
+  const targetAdminEmail = OFFICIAL_SUPER_ADMIN_EMAIL || 'yandaloussi@uae.ac.ma';
+  const currentAdminPin = getStoredAdminPin();
+
+  // Reset states on modal open
+  useEffect(() => {
+    if (isOpen) {
+      setError(null);
+      setSuccessMsg(null);
+      setPasscode('');
+      setEnteredOtp('');
+    }
+  }, [isOpen]);
+
+  // Countdown timer for OTP
+  useEffect(() => {
+    if (otpStep !== 'sent') return;
+    if (otpTimeLeft <= 0) return;
+
+    const timer = setInterval(() => {
+      setOtpTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [otpStep, otpTimeLeft]);
 
   if (!isOpen) return null;
 
-  const currentAdminPin = getStoredAdminPin();
-  const configuredRecoveryEmail = getStoredAdminRecoveryEmail();
+  // Format countdown mm:ss
+  const formatTimer = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
-  // 1. Submit Passcode Verification
-  const handleSubmit = (e: React.FormEvent) => {
+  // 1. Send OTP to official University Email (yandaloussi@uae.ac.ma)
+  const handleSendOtp = async () => {
+    setError(null);
+    setSuccessMsg(null);
+    setIsSendingOtp(true);
+
+    try {
+      const response = await fetch('/api/admin-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'send' }),
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.challenge) {
+        setChallengeToken(data.challenge);
+        setOtpStep('sent');
+        setOtpTimeLeft(600); // 10 minutes
+        setSuccessMsg(
+          lang === 'fr'
+            ? `Code secret envoyé avec succès à ${targetAdminEmail}. Veuillez vérifier votre boîte de réception universitaire.`
+            : `تم إرسال رمز التحقق بنجاح إلى ${targetAdminEmail}. يرجى مراجعة علبة البريد الجامعي الخاصة بك.`
+        );
+      } else {
+        throw new Error(data.error || 'Erreur d\'envoi');
+      }
+    } catch (err: any) {
+      // In case serverless endpoint is offline during development or offline test:
+      setError(
+        lang === 'fr'
+          ? `Impossible d'acheminer le code par e-mail actuellement. Vous pouvez utiliser votre code secret direct dans l'onglet ci-contre.`
+          : `تعذر الاتصال بخدمة البريد حالياً. يمكنك استخدام القن السيادي المباشر من التبويب المجاور.`
+      );
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  // 2. Verify entered OTP
+  const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccessMsg(null);
+
+    const cleanOtp = enteredOtp.trim();
+    if (!cleanOtp || cleanOtp.length !== 6) {
+      setError(
+        lang === 'fr'
+          ? 'Veuillez saisir le code à 6 chiffres reçu par e-mail.'
+          : 'يرجى إدخال رمز التحقق المكون من 6 أرقام.'
+      );
+      return;
+    }
+
+    if (!challengeToken) {
+      setError(
+        lang === 'fr'
+          ? 'Session expirée. Veuillez demander un nouveau code.'
+          : 'انتهت صلاحية الجلسة. يرجى طلب رمز تحقق جديد.'
+      );
+      return;
+    }
+
+    setIsVerifying(true);
+
+    try {
+      const response = await fetch('/api/admin-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'verify',
+          otp: cleanOtp,
+          challenge: challengeToken,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccessMsg(
+          lang === 'fr'
+            ? 'Identité confirmée avec succès ! Ouverture de la console...'
+            : 'تم التحقق من هوية المشرف بنجاح! جاري فتح لوحة التحكم...'
+        );
+        setTimeout(() => {
+          onSuccess();
+        }, 800);
+      } else {
+        setError(
+          data.message ||
+            (lang === 'fr'
+              ? 'Code incorrect ou expiré.'
+              : 'رمز التحقق غير صحيح أو منتهي الصلاحية.')
+        );
+      }
+    } catch (err) {
+      setError(
+        lang === 'fr'
+          ? 'Erreur lors de la vérification. Veuillez réessayer.'
+          : 'حدث خطأ أثناء التحقق. يرجى إعادة المحاولة.'
+      );
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  // 3. Direct Passcode Verification (Sovereign Master Key)
+  const handlePasscodeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isLockedOut) return;
+
+    setError(null);
+    setSuccessMsg(null);
 
     const clean = passcode.trim();
     if (!clean) {
@@ -77,22 +223,29 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
     setIsVerifying(true);
     setTimeout(() => {
       setIsVerifying(false);
-      // Strictly match stored private admin PIN
       if (clean === currentAdminPin) {
-        onSuccess();
+        setSuccessMsg(
+          lang === 'fr'
+            ? 'Accès autorisé. Bienvenue Monsieur le Professeur.'
+            : 'تم التحقق بنجاح. أهلاً بك أستاذي الكريم.'
+        );
+        setTimeout(() => {
+          onSuccess();
+        }, 600);
       } else {
         const remaining = attemptsLeft - 1;
         setAttemptsLeft(remaining);
         if (remaining <= 0) {
+          setIsLockedOut(true);
           setError(
             lang === 'fr'
-              ? 'Accès verrouillé pour raisons de sécurité. Utilisez la procédure de récupération ci-dessous.'
-              : 'تم قفل الدخول لدواعي الأمان. يرجى استخدام خاصية استرجاع القن السري أدناه.'
+              ? 'Accès temporairement verrouillé suite à 5 tentatives erronées.'
+              : 'تم قفل الدخول مؤقتاً بعد 5 محاولات خاطئة لحماية المنصة.'
           );
         } else {
           setError(
             lang === 'fr'
-              ? `Code secret incorrect. ${remaining} tentative(s) restante(s).`
+              ? `Code incorrect. ${remaining} tentative(s) restante(s).`
               : `القن السري غير صحيح. تبقى لك ${remaining} محاولة.`
           );
         }
@@ -100,113 +253,29 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
     }, 400);
   };
 
-  // 2. Recovery: Request OTP to Recovery Email
-  const handleRequestRecoveryOtp = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccessMsg(null);
-
-    const cleanEmail = recoveryEmail.trim().toLowerCase();
-    if (!cleanEmail) {
-      setError(
-        lang === 'fr'
-          ? 'Veuillez saisir l\'adresse e-mail de récupération.'
-          : 'يرجى إدخال بريد الاسترجاع المعتمد.'
-      );
-      return;
-    }
-
-    // Match either the configured recovery email or official platform Gmail
-    if (
-      cleanEmail === configuredRecoveryEmail.toLowerCase() ||
-      cleanEmail === PLATFORM_GMAIL.toLowerCase()
-    ) {
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      setGeneratedRecoveryOtp(code);
-      setRecoveryStep('new_pin');
-      setSuccessMsg(
-        lang === 'fr'
-          ? `Code d'autorisation de récupération généré avec succès pour ${cleanEmail}.`
-          : `تم توليد رمز الأمان لاسترجاع حساب الإدارة بنجاح للبريد ${cleanEmail}.`
-      );
-    } else {
-      setError(
-        lang === 'fr'
-          ? `Cette adresse ne correspond pas au compte officiel (${PLATFORM_GMAIL}).`
-          : `البريد المدخل لا يطابق البريد الرسمي المعتمد للإدارة (${PLATFORM_GMAIL}).`
-      );
-    }
-  };
-
-  // 3. Recovery: Set New Admin PIN
-  const handleResetAdminPin = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    if (enteredRecoveryOtp.trim() !== generatedRecoveryOtp) {
-      setError(
-        lang === 'fr'
-          ? 'Code de vérification incorrect.'
-          : 'رمز التحقق غير صحيح.'
-      );
-      return;
-    }
-
-    if (!newAdminPin.trim() || newAdminPin.length < 4) {
-      setError(
-        lang === 'fr'
-          ? 'Le nouveau code secret doit comporter au moins 4 caractères.'
-          : 'يجب أن يتكون القن السري الجديد من 4 خانات على الأقل.'
-      );
-      return;
-    }
-
-    if (newAdminPin !== confirmNewAdminPin) {
-      setError(
-        lang === 'fr'
-          ? 'Les deux codes saisis ne correspondent pas.'
-          : 'تأكيد القن السري غير متطابق.'
-      );
-      return;
-    }
-
-    // Save newly defined admin PIN
-    saveStoredAdminPin(newAdminPin.trim());
-    setSuccessMsg(
-      lang === 'fr'
-        ? 'Nouveau code secret administrateur enregistré avec succès ! Vous pouvez maintenant vous connecter.'
-        : 'تم تعيين القن السري الجديد للإدارة بنجاح! يمكنك الآن تسجيل الدخول.'
-    );
-    setTimeout(() => {
-      setView('login');
-      setPasscode(newAdminPin.trim());
-      setRecoveryStep('email');
-      setRecoveryEmail('');
-    }, 1500);
-  };
-
   return (
     <div className="fixed inset-0 z-50 bg-stone-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-stone-200 animate-in fade-in zoom-in-95 my-8">
+        
         {/* Header with Security Badge */}
-        <div className="flex items-center justify-between pb-4 border-b border-stone-200 mb-6">
+        <div className="flex items-center justify-between pb-4 border-b border-stone-200 mb-5">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-amber-50 text-amber-700 rounded-2xl border border-amber-200 shadow-xs">
               <LockKeyhole className="w-6 h-6 text-amber-600" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black text-stone-900">
-                  {lang === 'fr' ? 'Accès Administrateur Sécurisé' : 'بوابة الدخول الآمن لمدير التطبيق'}
+                <h2 className="text-base sm:text-lg font-black text-stone-900">
+                  {lang === 'fr' ? 'Accès Super-Administrateur' : 'بوابة المشرف العام للمنصة'}
                 </h2>
                 <span className="text-[10px] font-mono font-black text-amber-950 bg-amber-300 px-2 py-0.5 rounded-full border border-amber-400">
-                  CONFIDENTIEL
+                  OFFICIEL
                 </span>
               </div>
               <p className="text-xs text-stone-500 mt-0.5">
                 {lang === 'fr'
-                  ? 'Foyer d\'administration centralisé · Protection stricte'
-                  : 'فضاء محمي مخصص حصرياً للمشرف على المنصة'}
+                  ? 'Pr. Yassine Al-Andaloussi · Faculté des Sciences Juridiques'
+                  : 'الأستاذ ياسين الأندلسي · جامعة عبد المالك السعدي'}
               </p>
             </div>
           </div>
@@ -219,26 +288,188 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
           </button>
         </div>
 
-        {/* VIEW 1: NORMAL ADMIN LOGIN */}
-        {view === 'login' ? (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="p-3.5 bg-stone-50 rounded-2xl border border-stone-200 text-xs text-stone-700 space-y-1">
-              <div className="flex items-center gap-2 font-bold text-stone-900">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                <span>{lang === 'fr' ? 'Authentification Sécurisée' : 'مصادقة سرية معتمدة'}</span>
+        {/* Identity Verification Notice */}
+        <div className="p-3.5 bg-gradient-to-r from-amber-50/80 to-stone-50 rounded-2xl border border-amber-200 text-xs text-stone-700 mb-5 space-y-1">
+          <div className="flex items-center gap-1.5 font-bold text-amber-950">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{lang === 'fr' ? 'Accès Strictement Réservé' : 'حساب محمي مرتبط حصرياً بالمشرف العام'}</span>
+          </div>
+          <p className="text-[11px] text-stone-600 leading-relaxed font-mono">
+            {targetAdminEmail}
+          </p>
+        </div>
+
+        {/* Dual Tab Switcher: OTP vs Passcode */}
+        <div className="grid grid-cols-2 gap-1.5 p-1 bg-stone-100 rounded-xl mb-5 text-xs font-bold">
+          <button
+            type="button"
+            onClick={() => {
+              setAuthMode('otp');
+              setError(null);
+            }}
+            className={`py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              authMode === 'otp'
+                ? 'bg-white text-stone-900 shadow-xs'
+                : 'text-stone-500 hover:text-stone-800'
+            }`}
+          >
+            <Mail className="w-3.5 h-3.5 text-amber-600" />
+            <span>{lang === 'fr' ? 'Code E-mail (OTP)' : 'رمز التحقق (OTP)'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAuthMode('passcode');
+              setError(null);
+            }}
+            className={`py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              authMode === 'passcode'
+                ? 'bg-white text-stone-900 shadow-xs'
+                : 'text-stone-500 hover:text-stone-800'
+            }`}
+          >
+            <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+            <span>{lang === 'fr' ? 'القن المباشر' : 'القن المباشر'}</span>
+          </button>
+        </div>
+
+        {/* TAB 1: OTP EMAIL VERIFICATION */}
+        {authMode === 'otp' && (
+          <div className="space-y-4">
+            {otpStep === 'idle' ? (
+              <div className="space-y-4">
+                <p className="text-xs text-stone-600 leading-relaxed">
+                  {lang === 'fr'
+                    ? `Cliquez ci-dessous pour recevoir un code d'autorisation unique à 6 chiffres sur votre adresse officielle (${targetAdminEmail}).`
+                    : `اضغط على الزر أدناه لتوليد وإرسال رمز أمان سري مؤقت (مكون من 6 أرقام) حصرياً إلى بريدك الجامعي المعتمد:`}
+                </p>
+
+                <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 text-center">
+                  <div className="text-xs font-mono font-bold text-stone-900">
+                    {targetAdminEmail}
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleSendOtp}
+                  disabled={isSendingOtp}
+                  className="w-full py-3 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs sm:text-sm rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isSendingOtp ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4 text-stone-950" />
+                  )}
+                  <span>
+                    {isSendingOtp
+                      ? (lang === 'fr' ? 'Génération et envoi du code...' : 'جارِ إرسال الرمز إلى بريدك...')
+                      : (lang === 'fr' ? 'Envoyer le Code OTP au Courriel' : 'إرسال رمز التحقق إلى بريدي الجامعي')}
+                  </span>
+                </button>
               </div>
-              <p className="text-[11px] text-stone-500">
-                {lang === 'fr'
-                  ? 'Ce code secret est strictement personnel et modifiable uniquement depuis la console d\'administration.'
-                  : 'القن السري خاص ومحمي ولا يظهر للعموم، ويمكن تغييره حصرياً من لوحة تحكم الإدارة.'}
-              </p>
-            </div>
+            ) : (
+              <form onSubmit={handleVerifyOtp} className="space-y-4">
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 space-y-1">
+                  <div className="font-bold flex items-center gap-1.5 text-emerald-800">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>{lang === 'fr' ? 'Code expédié avec succès' : 'تم إرسال الرمز بنجاح!'}</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-800/90">
+                    {lang === 'fr'
+                      ? `Consultez votre messagerie (${targetAdminEmail}) et saisissez le code reçu.`
+                      : `يرجى فتح علبة بريدك الجامعي (${targetAdminEmail}) وكتابة الرمز المكون من 6 أرقام.`}
+                  </p>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between text-xs font-bold text-stone-700 mb-1.5">
+                    <span>{lang === 'fr' ? 'Code de Vérification (6 chiffres)' : 'رمز التحقق السري'}</span>
+                    <span className="flex items-center gap-1 text-[11px] font-mono text-amber-700">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>{formatTimer(otpTimeLeft)}</span>
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    value={enteredOtp}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '');
+                      setEnteredOtp(val);
+                      setError(null);
+                    }}
+                    placeholder="••••••"
+                    className="w-full px-4 py-3 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 font-mono font-black text-xl text-center tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white transition-all"
+                    autoFocus
+                  />
+                </div>
+
+                {error && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                {successMsg && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                    <span>{successMsg}</span>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isVerifying || enteredOtp.length !== 6}
+                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isVerifying ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <ShieldCheck className="w-4 h-4" />
+                  )}
+                  <span>{lang === 'fr' ? 'Valider et Déverrouiller' : 'تأكيد الرمز وفتح لوحة الإدارة'}</span>
+                </button>
+
+                <div className="text-center pt-1">
+                  <button
+                    type="button"
+                    onClick={handleSendOtp}
+                    disabled={isSendingOtp}
+                    className="text-xs font-bold text-amber-700 hover:text-amber-800 cursor-pointer transition-colors"
+                  >
+                    {lang === 'fr' ? 'Renvoyer un nouveau code' : 'إعادة إرسال رمز جديد'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
+
+        {/* TAB 2: DIRECT SOVEREIGN PASSCODE */}
+        {authMode === 'passcode' && (
+          <form onSubmit={handlePasscodeSubmit} className="space-y-4">
+            <p className="text-xs text-stone-600 leading-relaxed">
+              {lang === 'fr'
+                ? 'Accès immédiat par clé secrète souveraine de l\'administrateur.'
+                : 'الدخول الفوري المباشر عبر القن السري السيادي الخاص بالمشرف العام.'}
+            </p>
 
             <div>
               <label className="block text-xs font-bold text-stone-700 mb-1.5 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
                   <KeyRound className="w-3.5 h-3.5 text-amber-600" />
-                  <span>{lang === 'fr' ? 'Code Secret Administrateur' : 'القن السري للإدارة'}</span>
+                  <span>{lang === 'fr' ? 'القن السري السيادي' : 'القن السري السيادي'}</span>
                 </span>
               </label>
               <div className="relative">
@@ -263,210 +494,35 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
               </div>
             </div>
 
-            {/* Error Message */}
             {error && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center gap-2 animate-in fade-in">
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                 <span>{error}</span>
               </div>
             )}
 
-            {/* Success Message */}
             {successMsg && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2 animate-in fade-in">
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
                 <span>{successMsg}</span>
               </div>
             )}
 
-            {/* Submit Button */}
             <button
               type="submit"
-              disabled={isVerifying || attemptsLeft <= 0}
-              className="w-full py-3 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-sm rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              disabled={isVerifying || isLockedOut}
+              className="w-full py-3 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-stone-950 font-black text-xs sm:text-sm rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
               {isVerifying ? (
-                <span>{lang === 'fr' ? 'Vérification en cours...' : 'جارِ التحقق الأمني...'}</span>
+                <RefreshCw className="w-4 h-4 animate-spin" />
               ) : (
-                <>
-                  <ShieldCheck className="w-4 h-4 text-stone-950" />
-                  <span>{lang === 'fr' ? 'Déverrouiller la Console Admin' : 'دخول لوحة تحكم المدير'}</span>
-                </>
+                <ShieldCheck className="w-4 h-4" />
               )}
+              <span>{lang === 'fr' ? 'Déverrouiller la Console Admin' : 'دخول لوحة تحكم الإدارة'}</span>
             </button>
-
-            {/* Forgot PIN Recovery Button */}
-            <div className="pt-2 text-center border-t border-stone-100">
-              <button
-                type="button"
-                onClick={() => {
-                  setView('recovery');
-                  setError(null);
-                  setSuccessMsg(null);
-                }}
-                className="text-xs font-bold text-amber-700 hover:text-amber-800 transition-colors cursor-pointer flex items-center justify-center gap-1.5 mx-auto py-1"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>{lang === 'fr' ? 'Code oublié ? Récupérer mon accès' : 'نسيت القن السري؟ استرجاع حساب الإدارة'}</span>
-              </button>
-            </div>
           </form>
-        ) : (
-          /* VIEW 2: RECOVERY FLOW */
-          <div className="space-y-4">
-            <div className="p-3.5 bg-amber-50/80 rounded-2xl border border-amber-200 text-xs text-amber-950 space-y-1">
-              <div className="flex items-center gap-1.5 font-black text-amber-900">
-                <Mail className="w-4 h-4 text-amber-700" />
-                <span>{lang === 'fr' ? 'Procédure Officielle de Récupération' : 'مسار الاسترجاع الرسمي عبر بريد المنصة'}</span>
-              </div>
-              <p className="text-[11px] text-amber-900/80">
-                {lang === 'fr'
-                  ? `Saisissez l'adresse Gmail officielle de l'application (${PLATFORM_GMAIL}) pour autoriser la réinitialisation du code secret.`
-                  : `أدخل البريد الإلكتروني الرسمي للتطبيق (${PLATFORM_GMAIL}) لإعادة تعيين القن السري بأمان.`}
-              </p>
-            </div>
-
-            {recoveryStep === 'email' ? (
-              <form onSubmit={handleRequestRecoveryOtp} className="space-y-3">
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">
-                    {lang === 'fr' ? 'E-mail Administrateur Officiel' : 'البريد الإلكتروني الرسمي للإدارة'}
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="email"
-                      required
-                      value={recoveryEmail}
-                      onChange={(e) => setRecoveryEmail(e.target.value)}
-                      placeholder={PLATFORM_GMAIL}
-                      className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
-                      dir="ltr"
-                    />
-                  </div>
-                </div>
-
-                {error && (
-                  <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                    <span>{error}</span>
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <Mail className="w-4 h-4" />
-                  <span>{lang === 'fr' ? 'Vérifier et Générer le Code' : 'التحقق وتوليد رمز الاسترجاع'}</span>
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={handleResetAdminPin} className="space-y-3">
-                {generatedRecoveryOtp && (
-                  <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs text-emerald-950 space-y-1">
-                    <div className="font-bold flex items-center gap-1.5 text-emerald-800">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      <span>{lang === 'fr' ? 'Jeton d\'autorisation généré' : 'رمز أمان الاسترجاع المؤقت:'}</span>
-                    </div>
-                    <div className="p-2 bg-white rounded-lg border border-emerald-200 font-mono font-black text-base text-center tracking-widest text-stone-900">
-                      {generatedRecoveryOtp}
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">
-                    {lang === 'fr' ? 'Saisir le Code d\'Autorisation' : 'إدخال رمز الأمان'}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={enteredRecoveryOtp}
-                    onChange={(e) => setEnteredRecoveryOtp(e.target.value)}
-                    placeholder={generatedRecoveryOtp || '123456'}
-                    className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs font-mono text-center tracking-widest focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">
-                    {lang === 'fr' ? 'Nouveau Code Secret' : 'القن السري الجديد'}
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    value={newAdminPin}
-                    onChange={(e) => setNewAdminPin(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">
-                    {lang === 'fr' ? 'Confirmer le Nouveau Code' : 'تأكيد القن السري الجديد'}
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    value={confirmNewAdminPin}
-                    onChange={(e) => setConfirmNewAdminPin(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
-
-                {error && (
-                  <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                    <span>{error}</span>
-                  </div>
-                )}
-
-                {successMsg && (
-                  <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-                    <span>{successMsg}</span>
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>{lang === 'fr' ? 'Enregistrer le Nouveau Code Secret' : 'حفظ القن السري الجديد'}</span>
-                </button>
-              </form>
-            )}
-
-            <div className="pt-2 text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setView('login');
-                  setError(null);
-                  setSuccessMsg(null);
-                  setRecoveryStep('email');
-                }}
-                className="text-xs text-stone-500 hover:text-stone-800 transition-colors cursor-pointer"
-              >
-                {lang === 'fr' ? '← Revenir à la connexion' : '← العودة لتسجيل الدخول'}
-              </button>
-            </div>
-          </div>
         )}
 
-        {/* Security Footer Details */}
-        <div className="mt-6 pt-4 border-t border-stone-200 flex items-center justify-between text-[11px] text-stone-600">
-          <div className="flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>{lang === 'fr' ? 'Protection Cryptographique CNDP' : 'حماية مشفرة وفق CNDP'}</span>
-          </div>
-          <div className="text-stone-600 font-mono text-[10px]">
-            {PLATFORM_GMAIL}
-          </div>
-        </div>
       </div>
     </div>
   );
