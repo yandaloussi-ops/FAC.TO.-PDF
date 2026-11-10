@@ -15,6 +15,9 @@ import {
 // Official Application Gmail Address
 export const PLATFORM_GMAIL = 'fac.en.pdf.maroc@gmail.com';
 
+// Official Super Admin & Author Email (Pr. Yassine Al-Andaloussi)
+export const OFFICIAL_SUPER_ADMIN_EMAIL = 'yandaloussi@uae.ac.ma';
+
 // Keys for localStorage
 const KEYS = {
   BOOKS: 'fac_en_pdf_books',
@@ -294,11 +297,11 @@ export const saveStoredAdminPin = (newPin: string): boolean => {
 };
 
 export const getStoredAdminRecoveryEmail = (): string => {
-  if (typeof window === 'undefined') return PLATFORM_GMAIL;
+  if (typeof window === 'undefined') return OFFICIAL_SUPER_ADMIN_EMAIL;
   try {
-    return localStorage.getItem(KEYS.ADMIN_RECOVERY_EMAIL) || PLATFORM_GMAIL;
+    return localStorage.getItem(KEYS.ADMIN_RECOVERY_EMAIL) || OFFICIAL_SUPER_ADMIN_EMAIL;
   } catch {
-    return PLATFORM_GMAIL;
+    return OFFICIAL_SUPER_ADMIN_EMAIL;
   }
 };
 
