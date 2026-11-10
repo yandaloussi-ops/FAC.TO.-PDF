@@ -103,7 +103,6 @@ export default async function handler(request: Request) {
         JSON.stringify({
           success: true,
           challenge,
-          targetEmail: SUPER_ADMIN_EMAIL,
           emailSent,
           emailError,
         }),
@@ -171,7 +170,6 @@ export default async function handler(request: Request) {
       return new Response(
         JSON.stringify({
           success: true,
-          adminEmail: SUPER_ADMIN_EMAIL,
           authenticatedAt: new Date().toISOString(),
         }),
         {
