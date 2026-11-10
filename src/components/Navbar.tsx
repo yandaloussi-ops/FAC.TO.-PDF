@@ -210,51 +210,44 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>{lang === 'fr' ? 'العربية' : 'Français'}</span>
           </button>
 
-          {/* GORGEOUS ADMIN BUTTON (GATED & SECURE) */}
+          {/* SECURE ADMIN GATEWAY (DISCRETE & PROTECTED) */}
           <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => {
-                if (isAdminAuthenticated) {
+            {isAdminAuthenticated ? (
+              <button
+                onClick={() => {
                   onSelectTab(currentTab === 'admin' ? 'home' : 'admin');
-                } else if (onOpenAdmin) {
-                  onOpenAdmin();
-                } else {
-                  onSelectTab('admin');
-                }
-              }}
-              className={`group relative flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap shadow-md ${
-                currentTab === 'admin'
-                  ? 'bg-amber-400 text-stone-950 ring-2 ring-amber-300 shadow-amber-500/30'
-                  : isAdminAuthenticated
-                  ? 'bg-gradient-to-r from-emerald-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-stone-950 border border-amber-300/50 hover:shadow-lg hover:shadow-amber-500/25'
-                  : 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-stone-950 border border-amber-300/50 hover:shadow-lg hover:shadow-amber-500/25'
-              }`}
-              title={
-                isAdminAuthenticated
-                  ? 'Console d\'Administration Déverrouillée (حساب المدير)'
-                  : 'Console d\'Administration Sécurisée — Accès Super-Administrateur Réservé'
-              }
-            >
-              {isAdminAuthenticated ? (
-                /* Active admin indicator */
+                }}
+                className={`group relative flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap shadow-md ${
+                  currentTab === 'admin'
+                    ? 'bg-amber-400 text-stone-950 ring-2 ring-amber-300 shadow-amber-500/30'
+                    : 'bg-gradient-to-r from-emerald-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-stone-950 border border-amber-300/50 hover:shadow-lg'
+                }`}
+                title={lang === 'fr' ? "Console d'Administration (Active)" : 'لوحة تحكم المشرف (مفعلة)'}
+              >
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-950 opacity-40"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-950"></span>
                 </span>
-              ) : (
-                /* Protected Lock Icon */
-                <Lock className="w-3.5 h-3.5 text-stone-950" />
-              )}
-
-              <ShieldCheck className="w-4 h-4 text-stone-950 group-hover:scale-110 transition-transform" />
-              <span className="uppercase tracking-wider font-extrabold text-[12px]">ADMIN</span>
-
-              {isAdminAuthenticated && (
+                <ShieldCheck className="w-4 h-4 text-stone-950" />
+                <span className="uppercase tracking-wider font-extrabold text-[12px]">ADMIN</span>
                 <span className="hidden sm:inline-block text-[9px] font-bold bg-stone-950/20 px-1 py-0.2 rounded">
                   ACTIF
                 </span>
-              )}
-            </button>
+              </button>
+            ) : (
+              /* Discreet lock for Super Admin — inconspicuous to regular students */
+              <button
+                onClick={() => {
+                  if (onOpenAdmin) onOpenAdmin();
+                  else onSelectTab('admin');
+                }}
+                className="p-2 text-stone-500 hover:text-amber-400 hover:bg-stone-850 rounded-xl transition-all cursor-pointer border border-transparent hover:border-stone-800"
+                title={lang === 'fr' ? 'Accès Superviseur' : 'دخول الإشراف'}
+                aria-label="Admin Gateway"
+              >
+                <Lock className="w-4 h-4" />
+              </button>
+            )}
 
             {/* Quick Lock Button if Admin is Authenticated */}
             {isAdminAuthenticated && onLockAdmin && (
