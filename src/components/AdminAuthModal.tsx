@@ -20,7 +20,7 @@ import {
   Send,
   Clock,
 } from 'lucide-react';
-import { getStoredAdminPin } from '../utils/storage';
+import { getStoredAdminPin, saveStoredAdminPin } from '../utils/storage';
 
 interface AdminAuthModalProps {
   isOpen: boolean;
@@ -104,7 +104,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
 
       const data = await response.json();
 
-      if (data.success && data.challenge) {
+      if (data.success && data.challenge && data.emailSent) {
         setChallengeToken(data.challenge);
         setOtpStep('sent');
         setOtpTimeLeft(600); // 10 minutes
@@ -114,13 +114,13 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
             : 'تم إرسال رمز الأمان السري بنجاح إلى البريد المعتمد لإدارة المنصة.'
         );
       } else {
-        throw new Error(data.error || "Erreur d'envoi");
+        throw new Error(data.error || data.emailError || "Service de messagerie non configuré");
       }
     } catch (err: any) {
       setError(
         lang === 'fr'
-          ? "Impossible d'acheminer le code par e-mail actuellement. Vous pouvez utiliser votre code secret direct dans l'onglet ci-contre."
-          : 'تعذر الاتصال بخدمة البريد حالياً. يمكنك استخدام القن المباشر للإدارة من التبويب المجاور.'
+          ? `Échec d'envoi (${err.message || 'service indisponible'}). Veuillez utiliser votre code direct dans l'onglet "القن المباشر" ci-contre.`
+          : `تعذر إرسال الرمز إلى البريد (${err.message || 'خدمة البريد غير مهيأة على Vercel'}). يمكنك الدخول الفوري عبر تبويب [القن المباشر] المجاور.`
       );
     } finally {
       setIsSendingOtp(false);
@@ -216,7 +216,13 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
     setIsVerifying(true);
     setTimeout(() => {
       setIsVerifying(false);
-      if (clean === currentAdminPin) {
+
+      // Strictly ONE Sovereign Master PIN: Exact match required
+      const SOVEREIGN_MASTER_PIN = 'FAC-Admin@2026';
+      const isMatch = clean === SOVEREIGN_MASTER_PIN;
+
+      if (isMatch) {
+        saveStoredAdminPin(SOVEREIGN_MASTER_PIN);
         setSuccessMsg(
           lang === 'fr'
             ? 'Accès autorisé. Session administrateur ouverte.'
