@@ -1,12 +1,13 @@
 import React from 'react';
-import { ShieldCheck, BookOpen, GraduationCap } from 'lucide-react';
+import { ShieldCheck, BookOpen, GraduationCap, Lock } from 'lucide-react';
 
 interface FooterProps {
   lang: 'fr' | 'ar';
   onOpenDataProtectionModal?: () => void;
+  onOpenAdmin?: () => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ lang, onOpenDataProtectionModal }) => {
+export const Footer: React.FC<FooterProps> = ({ lang, onOpenDataProtectionModal, onOpenAdmin }) => {
   return (
     <footer className="bg-stone-900 text-stone-300 border-t border-stone-800 py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -78,6 +79,19 @@ export const Footer: React.FC<FooterProps> = ({ lang, onOpenDataProtectionModal 
             <span>{lang === 'fr' ? 'Charte Anti-Piratage Universitaire' : 'ميثاق حماية الملكية الفكرية'}</span>
             <span aria-hidden="true">·</span>
             <span>{lang === 'fr' ? 'Conditions d\'Utilisation des Licences' : 'شروط التراخيص الفردية'}</span>
+            {onOpenAdmin && (
+              <>
+                <span aria-hidden="true">·</span>
+                <button
+                  onClick={onOpenAdmin}
+                  className="hover:text-amber-400 transition-colors cursor-pointer inline-flex items-center gap-1 text-[11px] text-stone-600 hover:text-amber-400"
+                  title={lang === 'fr' ? 'Portail Superviseur' : 'بوابة المشرف'}
+                >
+                  <Lock className="w-3 h-3" />
+                  <span>{lang === 'fr' ? 'Portail d\'administration' : 'بوابة الإشراف'}</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
