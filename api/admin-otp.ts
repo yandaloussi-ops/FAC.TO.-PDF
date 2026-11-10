@@ -1,8 +1,71 @@
-import { Resend } from 'resend';
+import tls from 'tls';
 
-// Strictly bound to the official Super Admin identity
-export const SUPER_ADMIN_EMAIL = 'yandaloussi@uae.ac.ma';
+// Official Platform Admin Email for OTP and Notifications
+export const PLATFORM_ADMIN_EMAIL = 'fac.en.pdf.maroc@gmail.com';
+const GMAIL_USER = process.env.GMAIL_USER || 'fac.en.pdf.maroc@gmail.com';
+const GMAIL_PASS = (process.env.GMAIL_APP_PASS || 'waaxokvmglrbwkze').replace(/\s+/g, '');
 const SECRET_SALT = process.env.ADMIN_OTP_SECRET || 'FAC-OTP-SECURE-SALT-2026-ANDALOUSSI';
+
+// Direct Google SMTP Email Sender (Zero external npm dependencies)
+function sendGmail({ to, subject, html }: { to: string; subject: string; html: string }): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const socket = tls.connect(465, 'smtp.gmail.com');
+    socket.setEncoding('utf8');
+
+    const commands = [
+      'EHLO localhost',
+      'AUTH LOGIN',
+      Buffer.from(GMAIL_USER).toString('base64'),
+      Buffer.from(GMAIL_PASS).toString('base64'),
+      `MAIL FROM:<${GMAIL_USER}>`,
+      `RCPT TO:<${to}>`,
+      'DATA',
+    ];
+
+    let cmdIndex = 0;
+    let finished = false;
+
+    socket.on('data', (data: string) => {
+      if (data.startsWith('5') || data.startsWith('4')) {
+        finished = true;
+        socket.end();
+        return reject(new Error('SMTP Error: ' + data.trim()));
+      }
+
+      if (cmdIndex < commands.length) {
+        socket.write(commands[cmdIndex] + '\r\n');
+        cmdIndex++;
+      } else if (data.startsWith('354')) {
+        const rawMessage = [
+          `From: "FAC en PDF - Administration" <${GMAIL_USER}>`,
+          `To: <${to}>`,
+          `Subject: =?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`,
+          'MIME-Version: 1.0',
+          'Content-Type: text/html; charset=UTF-8',
+          'Content-Transfer-Encoding: base64',
+          '',
+          Buffer.from(html).toString('base64'),
+          '.',
+          '',
+        ].join('\r\n');
+        socket.write(rawMessage);
+      } else if (data.startsWith('250') && cmdIndex >= commands.length) {
+        finished = true;
+        socket.write('QUIT\r\n');
+        socket.end();
+        resolve(true);
+      }
+    });
+
+    socket.on('error', (err) => {
+      if (!finished) reject(err);
+    });
+
+    socket.on('close', () => {
+      if (!finished) reject(new Error('SMTP connection closed unexpectedly'));
+    });
+  });
+}
 
 // Helper: HMAC SHA-256 for secure stateless OTP challenge verification
 async function computeHash(message: string, secret: string): Promise<string> {
@@ -16,13 +79,9 @@ async function computeHash(message: string, secret: string): Promise<string> {
   );
   const signature = await crypto.subtle.sign('HMAC', key, enc.encode(message));
   return Array.from(new Uint8Array(signature))
-    .map(b => b.toString(16).padStart(2, '0'))
+    .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
 }
-
-export const config = {
-  runtime: 'edge',
-};
 
 export default async function handler(request: Request) {
   // CORS Preflight
@@ -51,7 +110,7 @@ export default async function handler(request: Request) {
     const body = await request.json();
     const action = body.action; // 'send' | 'verify'
 
-    // ACTION 1: SEND 6-DIGIT OTP EXCLUSIVELY TO SUPER ADMIN
+    // ACTION 1: SEND 6-DIGIT OTP DIRECTLY TO PLATFORM GMAIL
     if (action === 'send') {
       const randomBuffer = new Uint32Array(1);
       crypto.getRandomValues(randomBuffer);
@@ -59,52 +118,62 @@ export default async function handler(request: Request) {
 
       // OTP validity: 10 minutes
       const expiresAt = Date.now() + 10 * 60 * 1000;
-      const signaturePayload = `${SUPER_ADMIN_EMAIL}:${otp}:${expiresAt}`;
+      const signaturePayload = `${PLATFORM_ADMIN_EMAIL}:${otp}:${expiresAt}`;
       const token = await computeHash(signaturePayload, SECRET_SALT);
       const challenge = `${expiresAt}.${token}`;
 
       let emailSent = false;
       let emailError: string | null = null;
-      const resendApiKey = process.env.RESEND_API_KEY;
 
-      if (resendApiKey) {
-        try {
-          const resend = new Resend(resendApiKey);
-          await resend.emails.send({
-            from: 'FAC en PDF - Sécurité <onboarding@resend.dev>',
-            to: [SUPER_ADMIN_EMAIL],
-            subject: 'رمز الدخول السري للوحة الإدارة - FAC en PDF',
-            html: `
-              <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 540px; margin: 0 auto; padding: 24px; border: 1px solid #e7e5e4; border-radius: 16px; background-color: #fafaf9;">
-                <div style="text-align: center; margin-bottom: 20px;">
-                  <h2 style="color: #1c1917; margin: 0;">بوابة الدخول الآمن للمشرف العام</h2>
-                  <p style="color: #78716c; font-size: 13px; margin: 4px 0 0;">منصة FAC en PDF للكتب الجامعية المحمية</p>
-                </div>
-                <div style="background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e7e5e4; text-align: center;">
-                  <p style="color: #44403c; font-size: 14px; margin-bottom: 12px;">مرحباً الأستاذ ياسين الأندلسي، تم طلب تسجيل الدخول للوحة تحكم الإدارة. رمز التحقق السري الخاص بك هو:</p>
-                  <div style="font-size: 32px; font-weight: 900; letter-spacing: 6px; color: #b45309; background-color: #fef3c7; padding: 12px 24px; border-radius: 10px; display: inline-block; font-family: monospace;">
-                    ${otp}
-                  </div>
-                  <p style="color: #a8a29e; font-size: 12px; margin-top: 14px;">ينتهي هذا الرمز خلال 10 دقائق. إذا لم تكن أنت من طلب هذا الرمز، يرجى تجاهله بأمان.</p>
-                </div>
-                <p style="color: #a8a29e; font-size: 11px; text-align: center; margin-top: 16px;">مرسل حصرياً إلى البريد الأكاديمي: ${SUPER_ADMIN_EMAIL}</p>
+      try {
+        await sendGmail({
+          to: PLATFORM_ADMIN_EMAIL,
+          subject: `🔐 رمز الدخول للوحة الإدارة: ${otp}`,
+          html: `
+            <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 16px; background-color: #fafaf9;">
+              <div style="text-align: center; margin-bottom: 20px;">
+                <h2 style="color: #111827; margin: 0;">بوابة الدخول الآمن للمشرف</h2>
+                <p style="color: #6b7280; font-size: 13px; margin: 4px 0 0;">منصة FAC en PDF للكتب الجامعية المحمية</p>
               </div>
-            `,
-          });
-          emailSent = true;
-        } catch (err: any) {
-          emailError = err?.message || 'Failed to dispatch email via Resend';
-        }
-      } else {
-        emailError = 'RESEND_API_KEY non configurée';
+              <div style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #e5e7eb; text-align: center;">
+                <p style="color: #374151; font-size: 14px; margin-bottom: 14px;">تم طلب رمز تحقق للدخول إلى لوحة الإدارة. رمز الأمان الخاص بك هو:</p>
+                <div style="font-size: 34px; font-weight: 900; letter-spacing: 8px; color: #b45309; background-color: #fef3c7; padding: 14px 28px; border-radius: 12px; display: inline-block; font-family: monospace;">
+                  ${otp}
+                </div>
+                <p style="color: #9ca3af; font-size: 12px; margin-top: 14px;">صلاحية هذا الرمز: 10 دقائق فقط.</p>
+              </div>
+              <p style="color: #9ca3af; font-size: 11px; text-align: center; margin-top: 16px;">مرسل حصرياً إلى بريد الإدارة الرسمي.</p>
+            </div>
+          `,
+        });
+        emailSent = true;
+      } catch (err: any) {
+        emailError = err?.message || 'SMTP sending error';
+        emailSent = false;
+      }
+
+      if (!emailSent) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            emailSent: false,
+            error: emailError || "Erreur d'envoi",
+          }),
+          {
+            status: 400,
+            headers: {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': '*',
+            },
+          }
+        );
       }
 
       return new Response(
         JSON.stringify({
           success: true,
           challenge,
-          emailSent,
-          emailError,
+          emailSent: true,
         }),
         {
           status: 200,
@@ -150,7 +219,7 @@ export default async function handler(request: Request) {
         );
       }
 
-      const signaturePayload = `${SUPER_ADMIN_EMAIL}:${String(otp).trim()}:${expiresAt}`;
+      const signaturePayload = `${PLATFORM_ADMIN_EMAIL}:${String(otp).trim()}:${expiresAt}`;
       const expectedToken = await computeHash(signaturePayload, SECRET_SALT);
 
       if (token !== expectedToken) {
