@@ -9,24 +9,8 @@ export const initialStudentProfile: StudentProfile = {
   university: 'Université Abdelmalek Essaâdi (UAE)',
   ipAddress: '196.200.142.12',
   drmLicenseKey: 'DRM-FAC-SECURE-89A4E701-X992',
-  acquiredBookIds: ['book-science-politique', 'book-droit-civil', 'book-algo-data'],
-  bookProgress: {
-    'book-science-politique': {
-      currentPage: 1,
-      completedPercent: 25,
-      lastReadAt: 'Aujourd\'hui à 11:30',
-    },
-    'book-droit-civil': {
-      currentPage: 3,
-      completedPercent: 35,
-      lastReadAt: 'Aujourd\'hui à 09:15',
-    },
-    'book-algo-data': {
-      currentPage: 1,
-      completedPercent: 12,
-      lastReadAt: 'Hier à 16:40',
-    },
-  },
+  acquiredBookIds: [],
+  bookProgress: {},
 };
 
 export const MOCK_BOOKS: Book[] = [
