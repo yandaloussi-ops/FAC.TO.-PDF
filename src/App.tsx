@@ -14,6 +14,8 @@ import {
   saveStudentToFirestore,
   recordTransactionInFirestore,
 } from './services/firestoreService';
+import { collection, onSnapshot, doc, updateDoc, setDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
+import { db } from './firebase';
 import { Navbar } from './components/Navbar';
 import { HomePage } from './components/HomePage';
 import { Hero } from './components/Hero';
@@ -161,11 +163,48 @@ export default function App() {
       }
     });
 
+    const unsubDrmKeys = onSnapshot(collection(db, 'drm_keys'), (snapshot) => {
+      const keys = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setFirestoreDrmKeys(keys || []);
+    }, (err) => console.warn('DRM keys sync notice:', err));
+
     return () => {
       unsubBooks();
       unsubProfs();
+      unsubDrmKeys();
     };
   }, []);
+
+  const [firestoreDrmKeys, setFirestoreDrmKeys] = useState<any[]>([]);
+
+  // Synchronize student's acquired books with verified active keys from Firestore (Purge unverified books)
+  useEffect(() => {
+    if (!student) return;
+    const cleanEmail = (student.email || '').trim().toLowerCase();
+    const cleanPhone = (student.phone || '').replace(/\D/g, '');
+
+    const myActiveKeys = firestoreDrmKeys.filter((k) => {
+      if (k.status !== 'active') return false;
+      const kEmail = (k.studentEmail || '').trim().toLowerCase();
+      const kPhone = (k.studentPhone || '').replace(/\D/g, '');
+      if (cleanEmail && kEmail && cleanEmail === kEmail) return true;
+      if (cleanPhone && kPhone && cleanPhone === kPhone) return true;
+      return false;
+    });
+
+    const activeBookIdsFromKeys = myActiveKeys.map((k) => k.bookId).filter(Boolean);
+    const freeIds = (books || []).filter(b => b.isFree || (!b.price && !b.priceMAD)).map(b => b.id);
+
+    setStudent((prev) => {
+      const currentIds = prev.acquiredBookIds || [];
+      const cleaned = currentIds.filter(id => activeBookIdsFromKeys.includes(id) || freeIds.includes(id));
+      const nextIds = Array.from(new Set([...cleaned, ...activeBookIdsFromKeys]));
+      if (nextIds.length !== currentIds.length || !nextIds.every(id => currentIds.includes(id))) {
+        return { ...prev, acquiredBookIds: nextIds };
+      }
+      return prev;
+    });
+  }, [firestoreDrmKeys, student.email, student.phone, books]);
 
   // Visitor mode pricing state (Requirement 9)
   const [isVisitorMode, setIsVisitorMode] = useState<boolean>(false);
@@ -193,6 +232,33 @@ export default function App() {
   const [isUserGuideModalOpen, setIsUserGuideModalOpen] = useState<boolean>(false);
   const [userGuideInitialTab, setUserGuideInitialTab] = useState<'guide_student' | 'guide_professor' | 'terms_contract' | 'cndp_privacy'>('guide_student');
   const [globalToast, setGlobalToast] = useState<{ title: string; message: string } | null>(null);
+
+  // Strict Acquisition Verifier: Paid books strictly require an active DRM key in Firestore
+  const isBookAcquired = useCallback((b: Book | null | undefined): boolean => {
+    if (!b) return false;
+    if (b.isFree || (!b.price && !b.priceMAD)) return true;
+    if (isAdminAuthenticated) return true;
+    if (authenticatedProfessor && (
+      b.author === authenticatedProfessor.fullName ||
+      b.author.includes(authenticatedProfessor.fullName) ||
+      authenticatedProfessor.fullName.includes(b.author)
+    )) return true;
+
+    const cleanEmail = (student?.email || '').trim().toLowerCase();
+    const cleanPhone = (student?.phone || '').replace(/\D/g, '');
+
+    return firestoreDrmKeys.some((k) => {
+      if (k.status !== 'active') return false;
+      const matchBook = (k.bookId && k.bookId === b.id) ||
+                        (k.bookTitle && b.title && k.bookTitle.trim().toLowerCase() === b.title.trim().toLowerCase());
+      if (!matchBook) return false;
+      const kEmail = (k.studentEmail || '').trim().toLowerCase();
+      const kPhone = (k.studentPhone || '').replace(/\D/g, '');
+      if (cleanEmail && kEmail && cleanEmail === kEmail) return true;
+      if (cleanPhone && kPhone && cleanPhone === kPhone) return true;
+      return false;
+    });
+  }, [isAdminAuthenticated, authenticatedProfessor, student?.email, student?.phone, firestoreDrmKeys]);
 
   // Sync RTL / LTR direction on document
   useEffect(() => {
@@ -531,6 +597,16 @@ export default function App() {
     const book = books.find((b) => b.id === bookId);
     if (!book) return;
 
+    const actualPrice = Number(book.priceMAD ?? (book as any).price ?? 0);
+    const isActuallyFree = book.isFree && actualPrice === 0;
+
+    // Strict security lockdown: Paid books can never be acquired silently without a verified payment or DRM key
+    if (!isActuallyFree && !chosenMethod && !customDrmCode) {
+      setSelectedBookForReader(null);
+      handleOpenCheckout(book);
+      return;
+    }
+
     // 1. Add to student's bookshelf
     if (!student.acquiredBookIds.includes(bookId)) {
       setStudent((prev) => ({
@@ -635,6 +711,60 @@ export default function App() {
   // Student Redeem Code Input with Strict Anti-Sharing & Single Device Locking
   const handleRedeemCode = (code: string): { success: boolean; messageFr: string; messageAr: string } => {
     const cleanCode = code.trim().toUpperCase();
+
+    // 1. First check cloud DRM keys from Firestore
+    const matchingCloudKey = firestoreDrmKeys.find(
+      (k) => (k.key || '').trim().toUpperCase() === cleanCode
+    );
+
+    if (matchingCloudKey) {
+      if (matchingCloudKey.status !== 'active') {
+        return {
+          success: false,
+          messageFr: 'Ce code de licence est en attente de vérification ou a été révoqué par l\'administration.',
+          messageAr: 'مفتاح الترخيص غير نشط حالياً (قيد مراجعة الوصل من طرف الإدارة) أو تم إلغاؤه.',
+        };
+      }
+
+      const matchingBook = books.find(
+        (b) => b.id === matchingCloudKey.bookId || b.title.trim().toLowerCase() === (matchingCloudKey.bookTitle || '').trim().toLowerCase()
+      );
+      const bookId = matchingBook?.id || matchingCloudKey.bookId;
+      const bookTitle = matchingBook?.title || matchingCloudKey.bookTitle || 'Ouvrage';
+
+      if (student.acquiredBookIds.includes(bookId)) {
+        return {
+          success: false,
+          messageFr: `Le polycopié "${bookTitle}" est déjà actif et débloqué dans votre bibliothèque.`,
+          messageAr: `المقرر "${bookTitle}" مفعل ومتاح مسبقاً في مكتبتك.`,
+        };
+      }
+
+      // Unlock for student
+      setStudent((prev) => ({
+        ...prev,
+        acquiredBookIds: Array.from(new Set([...prev.acquiredBookIds, bookId])),
+      }));
+
+      // Sync to Firestore student doc
+      const studentDocId = (student.email || 'etudiant').trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+      setDoc(
+        doc(db, 'students', studentDocId),
+        {
+          acquiredBookIds: arrayUnion(bookId),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      ).catch((e) => console.warn('Sync student error:', e));
+
+      return {
+        success: true,
+        messageFr: `Licence validée et verrouillée avec succès sur cet appareil pour le cours : "${bookTitle}".`,
+        messageAr: `تم تفعيل وتثبيت الترخيص بنجاح على هذا الجهاز لمقرر: "${bookTitle}".`,
+      };
+    }
+
+    // 2. Check local licenses
     const matchingLicense = drmLicenses.find(
       (lic) => lic.licenseCode.toUpperCase() === cleanCode
     );
@@ -1036,7 +1166,7 @@ export default function App() {
             books={books}
             facultyNews={facultyNews}
             professorNotices={professorNotices}
-            student={student}
+            student={{ ...student, acquiredBookIds: books.filter(b => isBookAcquired(b)).map(b => b.id) }}
             professors={professors}
             onNavigateTab={(tab) => {
               if (tab === 'admin') {
@@ -1094,7 +1224,7 @@ export default function App() {
             <div id="catalog-section">
               <BookCatalog
                 books={books}
-                acquiredBookIds={student.acquiredBookIds}
+                acquiredBookIds={books.filter(b => isBookAcquired(b)).map(b => b.id)}
                 searchQuery={searchQuery}
                 selectedFaculty={catalogFacultyFilter}
                 onSelectFaculty={setCatalogFacultyFilter}
@@ -1119,7 +1249,7 @@ export default function App() {
             onReset={() => setCurrentTab('home')}
           >
             <StudentLibrary
-              student={student}
+              student={{ ...student, acquiredBookIds: books.filter(b => isBookAcquired(b)).map(b => b.id) }}
               allBooks={books}
               paymentOrders={paymentOrders}
               onOpenReader={handleOpenReader}
@@ -1180,7 +1310,7 @@ export default function App() {
         <BookDetailModal
           book={selectedBookForDetails}
           student={student}
-          isAcquired={student.acquiredBookIds.includes(selectedBookForDetails.id)}
+          isAcquired={isBookAcquired(selectedBookForDetails)}
           adminRib={adminCommercialAccount?.bankRib || ''}
           onClose={handleCloseDetails}
           onOpenReader={handleOpenReader}
@@ -1198,7 +1328,7 @@ export default function App() {
           <SecureReader
             book={selectedBookForReader}
             student={student}
-            isAcquired={student.acquiredBookIds.includes(selectedBookForReader.id)}
+            isAcquired={isBookAcquired(selectedBookForReader)}
             isAuthorOrAdmin={
               isAdminAuthenticated ||
               (authenticatedProfessor != null &&
@@ -1208,6 +1338,7 @@ export default function App() {
             }
             onClose={handleCloseReader}
             onAcquireBook={handleAcquireBook}
+            onOpenCheckout={handleOpenCheckout}
             onUpdateBookPdf={handleUpdateBookPdf}
             lang={lang}
           />
