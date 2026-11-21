@@ -473,6 +473,7 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
                   ) : (
                     drmCodes.map((c) => {
                       const isRevoked = c.status === 'revoked';
+                      const isPending = c.status === 'pending' || c.status === 'en_attente';
                       const keyDisplay = c.key || c.code || c.id;
                       return (
                         <tr key={c.id} className={`border-b border-stone-100 hover:bg-stone-50 ${isRevoked ? 'bg-rose-50/40' : ''}`}>
