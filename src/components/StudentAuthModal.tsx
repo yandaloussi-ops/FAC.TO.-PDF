@@ -179,9 +179,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
       drmLicenseKey: student.drmLicenseKey || `DRM-FAC-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
       acquiredBookIds: Array.isArray(existing?.acquiredBookIds)
         ? existing.acquiredBookIds
-        : Array.isArray(student?.acquiredBookIds)
-        ? student.acquiredBookIds
-        : ['book-droit-civil', 'book-algo-data'],
+        : [],
       bookProgress: existing?.bookProgress || student?.bookProgress || {},
       pinCode: registerPin.trim(),
       status: 'active',

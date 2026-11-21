@@ -3,7 +3,7 @@ import { Book, StudentProfile, UserNote, UserBookmark, DRMSecurityAlert } from '
 import * as pdfjsLib from 'pdfjs-dist';
 import { loadBookPdf, saveBookPdf, deleteBookPdf, getPdfPageCount } from '../utils/pdfStorage';
 import { uploadFileToStorage } from '../services/firestoreService';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, getDocs, setDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
   ChevronLeft,
@@ -61,6 +61,7 @@ interface SecureReaderProps {
   isAuthorOrAdmin?: boolean;
   onClose: () => void;
   onAcquireBook: (bookId: string) => void;
+  onOpenCheckout?: (book: Book) => void;
   onUpdateBookPdf?: (bookId: string, pdfUrl: string, totalPages?: number, fileName?: string) => void;
   lang: 'fr' | 'ar';
 }
@@ -72,6 +73,7 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
   isAuthorOrAdmin = false,
   onClose,
   onAcquireBook,
+  onOpenCheckout,
   onUpdateBookPdf,
   lang,
 }) => {
@@ -128,8 +130,20 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
   const [isRenderingPage, setIsRenderingPage] = useState<boolean>(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Effective rights: Author, Admin, and Free books have full access
-  const effectiveIsAcquired = isAcquired || isAuthorOrAdmin || book.isFree || book.priceMAD === 0;
+  // Inline DRM Key verification state
+  const [inlineDrmKey, setInlineDrmKey] = useState<string>('');
+  const [inlineDrmError, setInlineDrmError] = useState<string | null>(null);
+  const [inlineDrmSuccess, setInlineDrmSuccess] = useState<string | null>(null);
+  const [isVerifyingDrm, setIsVerifyingDrm] = useState<boolean>(false);
+  const [unlockedViaDrm, setUnlockedViaDrm] = useState<boolean>(false);
+
+  // Accurate pricing check (handles priceMAD or price)
+  const actualPrice = Number(book.priceMAD ?? (book as any).price ?? 0);
+  const isPaidBook = !book.isFree && actualPrice > 0;
+
+  // Effective rights: Author, SuperAdmin have sovereign access.
+  // Free books have access. Paid books strictly require verified acquired status or active DRM key.
+  const effectiveIsAcquired = isAuthorOrAdmin || (!isPaidBook) || isAcquired || unlockedViaDrm;
 
   // Custom user PDF upload states
   const [uploadPdfToast, setUploadPdfToast] = useState<string | null>(null);
@@ -141,7 +155,100 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
     !showStructuredText && pdfDoc
       ? pdfDoc.numPages
       : Math.max(book.totalPages || 0, book.pages?.length || 0, 1);
-  const maxAllowedPage = effectiveIsAcquired ? totalPagesCount : Math.min(book.sampleMaxPage || 2, totalPagesCount);
+
+  // Strict DRM page ceiling: Unacquired books CANNOT exceed sampleMaxPage (strictly 2 pages max)
+  const sampleLimit = Math.min(book.sampleMaxPage || 2, 2);
+  const maxAllowedPage = effectiveIsAcquired ? totalPagesCount : Math.min(sampleLimit, totalPagesCount);
+
+  // Strict page boundary enforcement: Never allow currentPage > maxAllowedPage for unpaid books
+  useEffect(() => {
+    if (!effectiveIsAcquired && currentPage > maxAllowedPage) {
+      setCurrentPage(maxAllowedPage);
+    }
+  }, [effectiveIsAcquired, maxAllowedPage, currentPage]);
+
+  // Inline DRM key verification handler directly inside the reader
+  const handleVerifyInlineDrm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanKey = inlineDrmKey.trim().toUpperCase();
+    if (!cleanKey) return;
+
+    setIsVerifyingDrm(true);
+    setInlineDrmError(null);
+    setInlineDrmSuccess(null);
+
+    try {
+      const q = query(
+        collection(db, 'drm_keys'),
+        where('key', '==', cleanKey),
+        where('status', '==', 'active')
+      );
+      const snap = await getDocs(q);
+
+      if (snap.empty) {
+        setInlineDrmError(
+          lang === 'fr'
+            ? 'Clé DRM introuvable ou non encore activée par l\'administration.'
+            : 'مفتاح الترخيص غير موجود أو غير نشط (قيد مراجعة الوصل من طرف الإدارة).'
+        );
+        setIsVerifyingDrm(false);
+        return;
+      }
+
+      const keyDoc = snap.docs[0];
+      const data = keyDoc.data();
+
+      // Check if matches this book
+      const keyBookId = data.bookId;
+      const keyBookTitle = (data.bookTitle || '').trim().toLowerCase();
+      const thisBookTitle = (book.title || '').trim().toLowerCase();
+
+      if (keyBookId !== book.id && keyBookTitle !== thisBookTitle) {
+        setInlineDrmError(
+          lang === 'fr'
+            ? `Cette clé est réservée au livre "${data.bookTitle}", pas pour ce polycopié.`
+            : `هذا المفتاح مخصص لمقرر "${data.bookTitle}" وليس لهذا المطبوع.`
+        );
+        setIsVerifyingDrm(false);
+        return;
+      }
+
+      // Successful activation!
+      setUnlockedViaDrm(true);
+      setInlineDrmSuccess(
+        lang === 'fr'
+          ? 'Clé DRM validée avec succès ! Le cours complet est débloqué.'
+          : 'تم التحقق من مفتاح الترخيص بنجاح! تم فتح المطبوع كاملاً.'
+      );
+
+      // Persist in Firestore
+      try {
+        const studentDocId = (student.email || 'etudiant').trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+        await setDoc(
+          doc(db, 'students', studentDocId),
+          {
+            acquiredBookIds: arrayUnion(book.id),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+        if (!data.deviceId && typeof navigator !== 'undefined') {
+          await updateDoc(doc(db, 'drm_keys', keyDoc.id), {
+            deviceId: navigator.userAgent.slice(0, 30),
+            updatedAt: serverTimestamp(),
+          });
+        }
+      } catch (saveErr) {
+        console.warn('Sync notice:', saveErr);
+      }
+    } catch (err: any) {
+      console.error('Error verifying DRM key:', err);
+      setInlineDrmError(lang === 'fr' ? 'Erreur de connexion' : 'حدث خطأ في الاتصال بقاعدة البيانات');
+    } finally {
+      setIsVerifyingDrm(false);
+    }
+  };
 
   // Check IndexedDB / memory storage for real PDF on mount
   useEffect(() => {
@@ -333,7 +440,12 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
     let isCancelled = false;
     let renderTask: any = null;
 
-    if (!effectiveIsAcquired && currentPage > (book.sampleMaxPage || 2)) {
+    if (!effectiveIsAcquired && currentPage > sampleLimit) {
+      if (canvasRef.current) {
+        const ctx = canvasRef.current.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      }
+      setIsRenderingPage(false);
       return;
     }
 
@@ -888,34 +1000,85 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
         )}
 
         {/* Locked Sample Notice for Unacquired Books */}
-        {!effectiveIsAcquired && currentPage > (book.sampleMaxPage || 2) ? (
-          <div className="max-w-lg mx-auto my-12 p-8 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-3xl shadow-xl text-center">
-            <div className="w-14 h-14 mx-auto bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-400 rounded-2xl flex items-center justify-center mb-4">
-              <Lock className="w-7 h-7" />
+        {!effectiveIsAcquired && currentPage > sampleLimit ? (
+          <div className="max-w-xl mx-auto my-12 p-8 bg-stone-900 border-2 border-amber-500/50 text-white rounded-3xl shadow-2xl text-center">
+            <div className="w-16 h-16 mx-auto bg-amber-500/20 text-amber-400 border border-amber-500/40 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-amber-500/10">
+              <Lock className="w-8 h-8" />
             </div>
-            <h3 className="text-lg font-bold text-stone-900 dark:text-white mb-2">
-              {lang === 'fr' ? 'Fin de l\'Extrait Gratuit' : 'نهاية العينة المجانية للقراءة'}
+            <h3 className="text-xl font-black text-amber-400 mb-2">
+              {lang === 'fr' ? 'Fin de l\'Extrait Gratuit Autorisé' : 'نهاية العينة المجانية للقراءة'}
             </h3>
-            <p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed mb-6">
+            <p className="text-xs text-stone-300 leading-relaxed mb-6">
               {lang === 'fr'
-                ? `Vous avez atteint la limite de prévisualisation (page ${book.sampleMaxPage || 2}/${totalPagesCount}). Inscrivez-vous et débloquez votre licence étudiante au tarif préférentiel.`
-                : `لقد وصلت إلى حد القراءة التجريبية المجانية (${book.sampleMaxPage || 2}/${totalPagesCount}). يرجى اقتناء الكتاب لفتح الترخيص كاملاً بالتعريفة الطلابية المدعومة.`}
+                ? `Vous avez atteint la limite de prévisualisation (page ${sampleLimit}/${totalPagesCount}). Pour accéder à la totalité du polycopié sans restriction, activez votre licence étudiante.`
+                : `لقد وصلت إلى نهاية العينة المجانية المصرح بها (ص ${sampleLimit} من أصل ${totalPagesCount} صفحة). لمتابعة قراءة باقي صفحات المطبوع، يرجى تفعيل ترخيصك الطلابي.`}
             </p>
-            <button
-              onClick={() => onAcquireBook(book.id)}
-              className="px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 mx-auto cursor-pointer"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>
-                {book.isFree
-                  ? lang === 'fr'
-                    ? 'Activer le polycopié gratuit'
-                    : 'تفعيل الكتاب المجاني'
-                  : lang === 'fr'
-                  ? `Activer la Licence Étudiant (${book.priceMAD} DH)`
-                  : `تفعيل الترخيص الطلابي (${book.priceMAD} درهم)`}
-              </span>
-            </button>
+
+            <div className="space-y-4">
+              <button
+                type="button"
+                onClick={() => {
+                  if (onOpenCheckout) {
+                    onClose();
+                    onOpenCheckout(book);
+                  } else {
+                    onAcquireBook(book.id);
+                  }
+                }}
+                className="w-full py-3.5 px-6 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-sm rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-stone-950" />
+                <span>
+                  {book.isFree
+                    ? lang === 'fr'
+                      ? 'Activer le polycopié gratuit'
+                      : 'تفعيل المطبوع مجاناً'
+                    : lang === 'fr'
+                    ? `Acheter le polycopié (${actualPrice} DH · Tarif Étudiant)`
+                    : `اقتناء المطبوع والترخيص الرقمي (${actualPrice} درهم · تعريفة مدعومة)`}
+                </span>
+              </button>
+
+              {/* Inline DRM Key Verification Form */}
+              <div className="pt-4 border-t border-stone-800 text-start">
+                <label className="block text-[11px] font-bold text-stone-300 mb-2">
+                  {lang === 'fr'
+                    ? 'Vous possédez déjà une clé DRM valide ?'
+                    : 'هل قمت بالشراء مسبقاً ولديك مفتاح ترخيص DRM؟'}
+                </label>
+                <form onSubmit={handleVerifyInlineDrm} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={inlineDrmKey}
+                    onChange={(e) => setInlineDrmKey(e.target.value)}
+                    placeholder="FAC-2026-XXXXX-XXXXX"
+                    className="flex-1 p-2.5 bg-stone-800 border border-stone-700 focus:border-amber-500 rounded-xl text-xs font-mono text-amber-300 uppercase outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isVerifyingDrm || !inlineDrmKey.trim()}
+                    className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-stone-950 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                  >
+                    {isVerifyingDrm ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+                    <span>{lang === 'fr' ? 'Valider' : 'تفعيل'}</span>
+                  </button>
+                </form>
+
+                {inlineDrmError && (
+                  <p className="mt-2 text-[11px] text-rose-400 font-medium flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{inlineDrmError}</span>
+                  </p>
+                )}
+
+                {inlineDrmSuccess && (
+                  <p className="mt-2 text-[11px] text-emerald-400 font-medium flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>{inlineDrmSuccess}</span>
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
         ) : (
           /* The Academic Reading Container */
@@ -1167,9 +1330,12 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
         <input
           type="range"
           min={1}
-          max={totalPagesCount}
-          value={currentPage}
-          onChange={(e) => setCurrentPage(Number(e.target.value))}
+          max={maxAllowedPage}
+          value={Math.min(currentPage, maxAllowedPage)}
+          onChange={(e) => {
+            const val = Number(e.target.value);
+            setCurrentPage(Math.min(val, maxAllowedPage));
+          }}
           className="w-32 sm:w-56 h-1.5 bg-stone-300 dark:bg-stone-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
         />
 
@@ -1183,7 +1349,7 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
         </button>
 
         <span className="font-mono font-bold text-xs tabular-nums min-w-[50px] text-center">
-          {currentPage} / {totalPagesCount}
+          {currentPage} / {effectiveIsAcquired ? totalPagesCount : `${sampleLimit} (${lang === 'fr' ? 'Échantillon' : 'عينة'})`}
         </span>
       </div>
 
@@ -1227,26 +1393,35 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
                 <div className="text-[11px] font-bold opacity-60 mb-2 uppercase tracking-wide">
                   {lang === 'fr' ? 'Chapitres & Pages' : 'الفصول والصفحات'}
                 </div>
-                {book.chapters?.map((chap, idx) => (
-                  <button
-                    key={chap.id || idx}
-                    type="button"
-                    onClick={() => {
-                      if (chap.startPage <= maxAllowedPage) {
-                        setCurrentPage(chap.startPage);
-                        setSidebarOpen(false);
-                      }
-                    }}
-                    className={`w-full p-2.5 rounded-xl text-start flex items-center justify-between transition-colors cursor-pointer ${
-                      currentPage >= chap.startPage && currentPage < chap.startPage + chap.pageCount
-                        ? 'bg-amber-500/20 border border-amber-500 text-amber-500 font-bold'
-                        : 'hover:bg-black/5 dark:hover:bg-white/10'
-                    }`}
-                  >
-                    <span className="truncate">{chap.title}</span>
-                    <span className="font-mono text-[10px] opacity-60 ml-2">P. {chap.startPage}</span>
-                  </button>
-                ))}
+                {book.chapters?.map((chap, idx) => {
+                  const isLocked = !effectiveIsAcquired && chap.startPage > maxAllowedPage;
+                  return (
+                    <button
+                      key={chap.id || idx}
+                      type="button"
+                      disabled={isLocked}
+                      onClick={() => {
+                        if (!isLocked) {
+                          setCurrentPage(chap.startPage);
+                          setSidebarOpen(false);
+                        }
+                      }}
+                      className={`w-full p-2.5 rounded-xl text-start flex items-center justify-between transition-colors ${
+                        isLocked
+                          ? 'opacity-40 cursor-not-allowed bg-stone-100 dark:bg-stone-900'
+                          : currentPage >= chap.startPage && currentPage < chap.startPage + chap.pageCount
+                          ? 'bg-amber-500/20 border border-amber-500 text-amber-500 font-bold cursor-pointer'
+                          : 'hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer'
+                      }`}
+                    >
+                      <span className="truncate flex items-center gap-1.5">
+                        {isLocked && <Lock className="w-3 h-3 text-amber-500 shrink-0" />}
+                        <span>{chap.title}</span>
+                      </span>
+                      <span className="font-mono text-[10px] opacity-60 ml-2">P. {chap.startPage}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
 

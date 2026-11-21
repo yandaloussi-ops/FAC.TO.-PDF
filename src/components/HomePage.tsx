@@ -1033,12 +1033,22 @@ export const HomePage: React.FC<HomePageProps> = ({
                             <button
                               onClick={() => {
                                 setIsSearchActive(false);
-                                onOpenBookReader(b);
+                                if (student.acquiredBookIds.includes(b.id) || b.isFree) {
+                                  onOpenBookReader(b);
+                                } else {
+                                  onOpenBookDetails(b);
+                                }
                               }}
                               className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-stone-950 text-xs font-bold rounded-md cursor-pointer whitespace-nowrap flex items-center gap-1"
                             >
                               <BookOpen className="w-3 h-3" />
-                              <span>{lang === 'fr' ? 'Lire in-app' : 'قراءة فورية'}</span>
+                              <span>
+                                {student.acquiredBookIds.includes(b.id)
+                                  ? (lang === 'fr' ? 'Lire in-app' : 'قراءة فورية')
+                                  : b.isFree
+                                  ? (lang === 'fr' ? 'Lire' : 'قراءة')
+                                  : (lang === 'fr' ? 'Acquérir' : 'اقتناء المقرر')}
+                              </span>
                             </button>
                           </div>
                         </div>

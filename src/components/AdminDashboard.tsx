@@ -16,7 +16,7 @@ import {
   saveProfessorToFirestore,
   recordTransactionInFirestore
 } from '../services/firestoreService';
-import { doc, updateDoc, setDoc, deleteDoc, collection, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, deleteDoc, collection, onSnapshot, addDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?: string; onToggleLang?: () => void }> = ({ books = [], professors = [], lang = 'fr', onToggleLang }) => {
@@ -210,12 +210,30 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
     }
   };
 
-  // 2. Bouton Action: Toggling DRM Status (Révoquer / Réactiver)
+  // 2. Bouton Action: Toggling DRM Status (Valider / Révoquer / Réactiver)
   const handleToggleDrmStatus = async (drmDocId: string, currentStatus: string) => {
     try {
-      const newStatus = currentStatus === 'revoked' ? 'active' : 'revoked';
+      const isPending = currentStatus === 'pending' || currentStatus === 'en_attente';
+      const isRevoked = currentStatus === 'revoked';
+      const newStatus = (isRevoked || isPending) ? 'active' : 'revoked';
       const ref = doc(db, 'drm_keys', drmDocId);
       await updateDoc(ref, { status: newStatus, updatedAt: new Date().toISOString() });
+
+      // When validating/activating, also grant the book to the student profile
+      if (newStatus === 'active') {
+        const drmDoc = drmCodes.find(d => d.id === drmDocId);
+        if (drmDoc && drmDoc.bookId && drmDoc.studentEmail) {
+          const studentDocId = drmDoc.studentEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+          try {
+            await setDoc(doc(db, 'students', studentDocId), {
+              acquiredBookIds: arrayUnion(drmDoc.bookId),
+              updatedAt: serverTimestamp(),
+            }, { merge: true });
+          } catch (e) {
+            console.warn("Could not sync student acquiredBookIds:", e);
+          }
+        }
+      }
     } catch (err) {
       console.error("Error toggling DRM status:", err);
       alert("Erreur lors de la mise à jour de la licence DRM.");
@@ -468,24 +486,35 @@ export const AdminDashboard: React.FC<{ books?: any[]; professors?: any[]; lang?
                           <td className="p-3 text-stone-600">{formatDate(c.createdAt)}</td>
                           <td className="p-3">
                             <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                              isRevoked ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
+                              isRevoked
+                                ? 'bg-rose-100 text-rose-800'
+                                : isPending
+                                ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                : 'bg-emerald-100 text-emerald-800'
                             }`}>
-                              {isRevoked ? 'Révoqué (معطل/مجمد)' : 'Actif (نشط)'}
+                              {isRevoked ? 'Révoqué (معطل)' : isPending ? 'En attente (قيد المراجعة)' : 'Actif (نشط)'}
                             </span>
                           </td>
                           <td className="p-3">
                             <div className="flex items-center gap-1.5">
-                              {/* Bouton 1: Révoquer / Réactiver (تجميد / إعادة التنشيط) */}
+                              {/* Bouton 1: Valider / Révoquer / Réactiver */}
                               <button
                                 onClick={() => handleToggleDrmStatus(c.id, c.status || 'active')}
                                 className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer ${
-                                  isRevoked
+                                  isPending
+                                    ? 'bg-amber-500 hover:bg-amber-400 text-stone-950 font-black shadow-xs'
+                                    : isRevoked
                                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
                                     : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
                                 }`}
-                                title={isRevoked ? 'Réactiver la licence' : 'Révoquer la licence (bloquer l\'accès)'}
+                                title={isPending ? 'Valider et activer la licence' : isRevoked ? 'Réactiver la licence' : 'Révoquer la licence (bloquer l\'accès)'}
                               >
-                                {isRevoked ? (
+                                {isPending ? (
+                                  <>
+                                    <CheckCircle size={12} />
+                                    <span>Valider</span>
+                                  </>
+                                ) : isRevoked ? (
                                   <>
                                     <CheckCircle size={12} />
                                     <span>Réactiver</span>

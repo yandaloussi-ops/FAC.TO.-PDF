@@ -83,7 +83,7 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
       const generatedDrmKey = `FAC-2026-${Math.random().toString(36).substring(2, 7).toUpperCase()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
       setIssuedDrmKey(generatedDrmKey);
 
-      // 4. حفظ كود الـ DRM في Firestore
+      // 4. حفظ كود الـ DRM في Firestore (بحالة معلقة لحين تأكيد الوصل)
       await addDoc(collection(db, 'drm_keys'), {
         key: generatedDrmKey,
         bookId: book?.id || '',
@@ -92,7 +92,7 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
         studentName: studentName.trim(),
         studentPhone: studentPhone.trim(),
         deviceId: null,
-        status: 'active',
+        status: 'pending',
         createdAt: serverTimestamp(),
       });
 
@@ -112,11 +112,11 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
         studentPhone: studentPhone.trim(),
         receiptUrl: receiptUrl,
         drmKey: generatedDrmKey,
-        status: 'active',
+        status: 'en_attente',
         createdAt: serverTimestamp(),
       });
 
-      // 5.5. الربط الآلي الشامل لحساب الطالب في Firestore (Comptes Étudiants)
+      // 5.5. تسجيل بيانات الطالب في Firestore دون تفعيل المقتنيات قبل مراجعة الوصل
       try {
         const cleanEmail = studentEmail.trim().toLowerCase();
         const studentDocId = cleanEmail.replace(/[^a-z0-9]/g, '_');
@@ -127,7 +127,6 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
           email: cleanEmail,
           phone: studentPhone.trim(),
           status: 'active',
-          acquiredBookIds: arrayUnion(book.id),
           updatedAt: serverTimestamp(),
           createdAt: serverTimestamp(),
         }, { merge: true });
@@ -173,11 +172,7 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
         console.warn('Resend notice:', resendErr);
       }
 
-      // 8. استدعاء رد النجاح لفك قفل الكتاب محلياً في حساب الطالب
-      if (onSuccess) {
-        onSuccess('Cash Plus', { receiptUrl, studentPhone }, generatedDrmKey);
-      }
-
+      // 8. تأكيد تسجيل الطلب وعرض شاشة المتابعة للطالب
       setSubmitted(true);
     } catch (error) {
       console.error('Error submitting order:', error);
@@ -297,42 +292,44 @@ export const MoroccanCheckoutModal: React.FC<MoroccanCheckoutModalProps> = ({
             </form>
           </>
         ) : (
-          /* شاشة النجاح: تسليم مفتاح التفعيل المؤقت للطالب فوراً على شاشته */
+          /* شاشة النجاح: إشعار الطالب بأن طلبه وصور الوصل أرسلت للإدارة وهي قيد التحقق */
           <div className="py-6 text-center space-y-4">
-            <div className="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto shadow-inner">
+            <div className="w-16 h-16 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center mx-auto shadow-inner">
               <CheckCircle2 className="w-10 h-10" />
             </div>
-            <h3 className="text-xl font-bold text-white">تم إرسال طلبك بنجاح!</h3>
+            <h3 className="text-xl font-bold text-white">تم استلام طلبك وإرسال الوصل للإدارة بنجاح!</h3>
             <p className="text-xs text-slate-300 leading-relaxed max-w-sm mx-auto">
-              تم رفع وصل الدفع وإشعار إدارة المنصة عبر الواتساب. تم تفعيل حسابك ويمكنك قراءة الكتاب كاملاً الآن.
+              تم إرسال صورة الوصل وتفاصيل العملية للإدارة. يقوم المشرف بمطابقة الوصل وتفعيل ترخيصك في أقرب وقت. ستصلك رسالة عبر الواتساب فور التفعيل.
             </p>
 
-            {/* صندوق مفتاح التفعيل المؤقت */}
-            <div className="p-4 bg-slate-800/90 border border-emerald-500/30 rounded-xl space-y-2 text-right">
+            {/* صندوق كود الطلب / مفتاح الترخيص المسجل */}
+            <div className="p-4 bg-slate-800/90 border border-amber-500/30 rounded-xl space-y-2 text-right">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-400 flex items-center gap-1">
                   <Key className="w-3.5 h-3.5 text-amber-400" />
-                  مفتاح التفعيل الخاص بك:
+                  رمز طلب الترخيص:
                 </span>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">
-                  نشط ومسجل
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30">
+                  قيد المراجعة والتحقق
                 </span>
               </div>
-              <div className="p-3 bg-slate-950 rounded-lg text-center font-mono font-bold text-emerald-400 text-sm tracking-widest select-all border border-slate-700/80 shadow-inner">
+              <div className="p-3 bg-slate-950 rounded-lg text-center font-mono font-bold text-amber-300 text-sm tracking-widest select-all border border-slate-700/80 shadow-inner">
                 {issuedDrmKey}
               </div>
               <p className="text-[11px] text-slate-400 text-center">
-                تم ربط هذا الترخيص باسمك وبريدك الأكاديمي وجهازك. احتفظ بهذا الرمز للرجوع إليه.
+                احتفظ بهذا الرمز لتفعيله فور اعتماد الوصل من طرف الإدارة عبر فضاء الطالب أو داخل القارئ.
               </p>
             </div>
 
-            <button
-              onClick={onClose}
-              className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
-            >
-              <span>بدء قراءة الكتاب الآن في القارئ المحمي</span>
-              <span>📖</span>
-            </button>
+            <div className="flex flex-col gap-2 pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full py-3 bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-bold rounded-xl transition-all cursor-pointer"
+              >
+                إغلاق والعودة
+              </button>
+            </div>
           </div>
         )}
       </div>
