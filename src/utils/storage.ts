@@ -15,8 +15,8 @@ import {
 // Official Application Gmail Address
 export const PLATFORM_GMAIL = 'fac.en.pdf.maroc@gmail.com';
 
-// Official Super Admin & Author Email (Pr. Yassine Al-Andaloussi)
-export const OFFICIAL_SUPER_ADMIN_EMAIL = 'yandaloussi@uae.ac.ma';
+// Internal Admin Identifier (Protected on Serverless Edge)
+export const OFFICIAL_SUPER_ADMIN_EMAIL = 'admin@platform.internal';
 
 // Keys for localStorage
 const KEYS = {
@@ -29,6 +29,24 @@ const KEYS = {
   ADMIN_ACCOUNT: 'fac_en_pdf_admin_account',
   PAYMENT_ORDERS: 'fac_en_pdf_payment_orders',
 };
+
+// Security Cache Buster: Forcibly purge any unauthorized leaked local storage on user devices
+const DRM_CACHE_SECURITY_VERSION = 'v7_strict_drm_lock_2026';
+if (typeof window !== 'undefined') {
+  try {
+    const currentVer = localStorage.getItem('fac_security_version');
+    if (currentVer !== DRM_CACHE_SECURITY_VERSION) {
+      localStorage.removeItem(KEYS.CURRENT_STUDENT);
+      localStorage.removeItem(KEYS.STUDENTS);
+      localStorage.removeItem('fac_pdf_current_student');
+      localStorage.removeItem('fac_pdf_acquired_books');
+      localStorage.removeItem(KEYS.PAYMENT_ORDERS);
+      localStorage.setItem('fac_security_version', DRM_CACHE_SECURITY_VERSION);
+    }
+  } catch (e) {
+    console.warn('Storage security migration notice:', e);
+  }
+}
 
 // Default Private Admin PIN (strictly unexposed in UI, changeable by Admin only)
 const DEFAULT_PRIVATE_ADMIN_PIN = 'FAC-Admin@2026';
@@ -250,8 +268,8 @@ export const getStoredCurrentStudent = (): StudentProfile => {
     return defaultStudent;
   }
   const acquired = Array.isArray(stored.acquiredBookIds)
-    ? Array.from(new Set([...initialStudentProfile.acquiredBookIds, ...stored.acquiredBookIds]))
-    : initialStudentProfile.acquiredBookIds;
+    ? stored.acquiredBookIds
+    : [];
 
   return {
     ...initialStudentProfile,
