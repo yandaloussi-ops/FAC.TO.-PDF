@@ -28,12 +28,25 @@ export const subscribeToBooks = (callback: (books: any[]) => void) => {
 export const saveBookToFirestore = async (bookData: any) => {
   const bookId = bookData.id || `book_${Date.now()}`;
   const bookRef = doc(db, 'books', bookId);
+  const cleanData = { ...bookData };
+  delete cleanData.pdfUrl; // Strict Security: Never expose raw PDF download URLs in public catalog
+  cleanData.hasPdf = Boolean(bookData.hasPdf || bookData.pdfUrl || bookData.pdfFileName);
   const payload = JSON.parse(JSON.stringify({
-    ...bookData,
+    ...cleanData,
     id: bookId,
     updatedAt: new Date().toISOString()
   }));
   await setDoc(bookRef, payload, { merge: true });
+};
+
+export const saveBookFileRecord = async (bookId: string, storagePath: string, originalFileName: string) => {
+  const fileDocRef = doc(db, 'book_files', bookId);
+  await setDoc(fileDocRef, {
+    bookId,
+    storagePath,
+    originalFileName,
+    updatedAt: new Date().toISOString()
+  }, { merge: true });
 };
 
 export const deleteBookFromFirestore = async (bookId: string) => {
@@ -133,8 +146,13 @@ export const recordTransactionInFirestore = async (txData: any) => {
 // ==========================================
 // 5. رفع الملفات إلى Firebase Storage
 // ==========================================
-export const uploadFileToStorage = async (file: File, folderPath: string): Promise<string> => {
-  const storageRef = ref(storage, `${folderPath}/${Date.now()}_${file.name}`);
+export const uploadFileToStorage = async (file: File, folderPath: string): Promise<{ downloadUrl: string; storagePath: string }> => {
+  const storagePath = `${folderPath}/${Date.now()}_${file.name}`;
+  const storageRef = ref(storage, storagePath);
   const snapshot = await uploadBytes(storageRef, file);
-  return await getDownloadURL(snapshot.ref);
+  let downloadUrl = '';
+  try {
+    downloadUrl = await getDownloadURL(snapshot.ref);
+  } catch {}
+  return { downloadUrl, storagePath };
 };
