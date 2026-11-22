@@ -6,6 +6,10 @@
  * Strict Server-Side DRM Authorization & Protected PDF Delivery
  */
 
+export const config = {
+  runtime: 'edge',
+};
+
 const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'fac-en-pdf';
 const FIREBASE_STORAGE_BUCKET = process.env.FIREBASE_STORAGE_BUCKET || 'fac-en-pdf.firebasestorage.app';
 const ADMIN_SECRET = process.env.ADMIN_PIN || 'FAC-Admin@2026';
@@ -16,7 +20,7 @@ const STATIC_BOOK_FILES: Record<string, string> = {
   'book-prof-1794164335508': 'books/pdfs/1794164335583_%D9%85%D8%A8%D8%A7%D8%AD%D8%AB_%D9%81%D9%8A_%D8%A7%D9%84%D8%B9%D9%84%D9%88%D9%85_%D8%A7%D9%84%D8%B3%D9%8A%D8%A7%D8%B3%D9%8A%D8%A9_%D9%85%D9%86%D9%82%D8%AD_A5.docx.pdf',
 };
 
-export default async function handler(request: Request) {
+async function handleRequest(request: Request): Promise<Response> {
   // CORS Preflight
   if (request.method === 'OPTIONS') {
     return new Response(null, {
@@ -194,4 +198,45 @@ export default async function handler(request: Request) {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
     });
   }
+}
+
+// Universal Handler: Seamlessly supports both Vercel Edge Runtime & Node.js Serverless Runtime
+export default async function handler(req: any, res?: any) {
+  // If running in Node.js serverless environment (req, res):
+  if (res && typeof res.status === 'function') {
+    try {
+      const proto = req.headers['x-forwarded-proto'] || 'https';
+      const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost';
+      const url = `${proto}://${host}${req.url}`;
+      
+      const headers = new Headers();
+      for (const [k, v] of Object.entries(req.headers)) {
+        if (v !== undefined) {
+          headers.set(k, Array.isArray(v) ? v.join(', ') : String(v));
+        }
+      }
+
+      const webReq = new Request(url, {
+        method: req.method,
+        headers,
+      });
+
+      const webRes = await handleRequest(webReq);
+      res.status(webRes.status);
+      webRes.headers.forEach((val, name) => {
+        res.setHeader(name, val);
+      });
+
+      const arrayBuffer = await webRes.arrayBuffer();
+      res.send(Buffer.from(arrayBuffer));
+      return;
+    } catch (adapterErr: any) {
+      console.error('Node serverless adapter error:', adapterErr);
+      res.status(500).json({ error: 'SERVERLESS_ADAPTER_ERROR', message: adapterErr?.message });
+      return;
+    }
+  }
+
+  // Running in Vercel Edge Runtime:
+  return handleRequest(req as Request);
 }
