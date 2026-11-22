@@ -63,6 +63,7 @@ import {
   saveStoredAdminAccount,
   getStoredPaymentOrders,
   saveStoredPaymentOrders,
+  isStudentRegistered,
   PLATFORM_GMAIL,
 } from './utils/storage';
 import {
@@ -179,21 +180,23 @@ export default function App() {
 
   // Synchronize student's acquired books with verified active keys from Firestore (Purge unverified books)
   useEffect(() => {
-    if (!student) return;
+    if (!student || !isStudentRegistered(student)) return;
     const cleanEmail = (student.email || '').trim().toLowerCase();
     const cleanPhone = (student.phone || '').replace(/\D/g, '');
+    if (!cleanEmail && !cleanPhone) return;
+    if (cleanEmail === 'etudiant@univ.ac.ma') return;
 
     const myActiveKeys = firestoreDrmKeys.filter((k) => {
       if (k.status !== 'active') return false;
       const kEmail = (k.studentEmail || '').trim().toLowerCase();
       const kPhone = (k.studentPhone || '').replace(/\D/g, '');
       if (cleanEmail && kEmail && cleanEmail === kEmail) return true;
-      if (cleanPhone && kPhone && cleanPhone === kPhone) return true;
+      if (cleanPhone && cleanPhone.length >= 8 && kPhone && cleanPhone === kPhone) return true;
       return false;
     });
 
     const activeBookIdsFromKeys = myActiveKeys.map((k) => k.bookId).filter(Boolean);
-    const freeIds = (books || []).filter(b => b.isFree || (!b.price && !b.priceMAD)).map(b => b.id);
+    const freeIds = (books || []).filter(b => b.isFree && Number(b.priceMAD ?? (b as any).price ?? 0) === 0).map(b => b.id);
 
     setStudent((prev) => {
       const currentIds = prev.acquiredBookIds || [];
@@ -204,7 +207,7 @@ export default function App() {
       }
       return prev;
     });
-  }, [firestoreDrmKeys, student.email, student.phone, books]);
+  }, [firestoreDrmKeys, student, books]);
 
   // Visitor mode pricing state (Requirement 9)
   const [isVisitorMode, setIsVisitorMode] = useState<boolean>(false);
@@ -236,7 +239,6 @@ export default function App() {
   // Strict Acquisition Verifier: Paid books strictly require an active DRM key in Firestore
   const isBookAcquired = useCallback((b: Book | null | undefined): boolean => {
     if (!b) return false;
-    if (b.isFree || (!b.price && !b.priceMAD)) return true;
     if (isAdminAuthenticated) return true;
     if (authenticatedProfessor && (
       b.author === authenticatedProfessor.fullName ||
@@ -244,8 +246,17 @@ export default function App() {
       authenticatedProfessor.fullName.includes(b.author)
     )) return true;
 
+    // Strict security check: Unregistered guests have NO acquired books
+    if (!isStudentRegistered(student)) return false;
+
+    // Only strictly free books (with 0 price) are accessible without payment
+    const actualPrice = Number(b.priceMAD ?? (b as any).price ?? 0);
+    if (b.isFree && actualPrice === 0) return true;
+
     const cleanEmail = (student?.email || '').trim().toLowerCase();
     const cleanPhone = (student?.phone || '').replace(/\D/g, '');
+    if (!cleanEmail && !cleanPhone) return false;
+    if (cleanEmail === 'etudiant@univ.ac.ma') return false;
 
     return firestoreDrmKeys.some((k) => {
       if (k.status !== 'active') return false;
@@ -255,10 +266,10 @@ export default function App() {
       const kEmail = (k.studentEmail || '').trim().toLowerCase();
       const kPhone = (k.studentPhone || '').replace(/\D/g, '');
       if (cleanEmail && kEmail && cleanEmail === kEmail) return true;
-      if (cleanPhone && kPhone && cleanPhone === kPhone) return true;
+      if (cleanPhone && cleanPhone.length >= 8 && kPhone && cleanPhone === kPhone) return true;
       return false;
     });
-  }, [isAdminAuthenticated, authenticatedProfessor, student?.email, student?.phone, firestoreDrmKeys]);
+  }, [isAdminAuthenticated, authenticatedProfessor, student, firestoreDrmKeys]);
 
   // Sync RTL / LTR direction on document
   useEffect(() => {
@@ -424,6 +435,47 @@ export default function App() {
   ]);
 
   const handleOpenReader = (book: Book) => {
+    // 1. Author professor and Super Admin have unrestricted preview rights
+    const isAuthor = authenticatedProfessor && (
+      book.author === authenticatedProfessor.fullName ||
+      book.author.includes(authenticatedProfessor.fullName) ||
+      authenticatedProfessor.fullName.includes(book.author)
+    );
+    if (isAdminAuthenticated || isAuthor) {
+      setSelectedBookForDetails(null);
+      setSelectedBookForReader(book);
+      try {
+        window.history.pushState({ modal: 'reader', bookId: book.id }, '', '#reader');
+      } catch {}
+      return;
+    }
+
+    // 2. Strict Authentication Requirement: Visitors must be registered students
+    if (!isStudentRegistered(student)) {
+      setPendingCourseForStudent(book);
+      setIsStudentAuthOpen(true);
+      setGlobalToast({
+        title: lang === 'fr' ? 'Accès Verrouillé · Compte Requis' : '🔒 المحتوى مقفل ومحمي',
+        message: lang === 'fr'
+          ? 'Veuillez vous inscrire ou vous connecter avec votre compte étudiant pour accéder à ce cours.'
+          : 'يرجى تسجيل الدخول أو إنشاء حسابك الطلابي الأكاديمي أولاً لمطالعة المقررات.'
+      });
+      return;
+    }
+
+    // 3. Strict DRM License Requirement: Must be acquired
+    if (!isBookAcquired(book)) {
+      setSelectedBookForCheckout(book);
+      setGlobalToast({
+        title: lang === 'fr' ? 'Livre Verrouillé (DRM)' : '🔒 المقرر مقفل ومحمي برخصة DRM',
+        message: lang === 'fr'
+          ? 'Ce manuel nécessite une licence active. Procédez à l\'acquisition pour débloquer votre accès nominatif.'
+          : 'هذا المقرر محمي بنظام رخص DRM. يرجى إتمام الاقتناء لفك القفل ومطالعة الكتاب.'
+      });
+      return;
+    }
+
+    // 4. Authorized: Open reader
     setSelectedBookForDetails(null);
     setSelectedBookForReader(book);
     try {
@@ -457,6 +509,17 @@ export default function App() {
   };
 
   const handleOpenCheckout = (book: Book) => {
+    if (!isStudentRegistered(student)) {
+      setPendingCourseForStudent(book);
+      setIsStudentAuthOpen(true);
+      setGlobalToast({
+        title: lang === 'fr' ? 'Compte Requis' : '🔒 تسجيل الحساب أولاً',
+        message: lang === 'fr'
+          ? 'Créez votre compte étudiant pour bénéficier du tarif préférentiel et acquérir ce polycopié.'
+          : 'يرجى إنشاء حساب الطالب أولاً للاستفادة من التعريفة التفضيلية وإتمام اقتناء المطبوع.'
+      });
+      return;
+    }
     setSelectedBookForCheckout(book);
     try {
       window.history.pushState({ modal: 'checkout', bookId: book.id }, '', '#checkout');
