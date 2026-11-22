@@ -31,7 +31,7 @@ const KEYS = {
 };
 
 // Security Cache Buster: Forcibly purge any unauthorized leaked local storage on user devices
-const DRM_CACHE_SECURITY_VERSION = 'v7_strict_drm_lock_2026';
+const DRM_CACHE_SECURITY_VERSION = 'v9_security_lock_mandatory_auth_2026';
 if (typeof window !== 'undefined') {
   try {
     const currentVer = localStorage.getItem('fac_security_version');
@@ -47,6 +47,20 @@ if (typeof window !== 'undefined') {
     console.warn('Storage security migration notice:', e);
   }
 }
+
+/** Check if current user is a genuinely registered student */
+export const isStudentRegistered = (s: StudentProfile | null | undefined): boolean => {
+  if (!s) return false;
+  const email = (s.email || '').trim().toLowerCase();
+  const name = (s.fullName || '').trim();
+  const id = (s.id || '').trim();
+  if (!email || !name || !id) return false;
+  if (email === 'etudiant@univ.ac.ma' || name.includes('Étudiant Universitaire') || id === 'usr_student_01') {
+    return false;
+  }
+  if (!email.includes('@') || !email.includes('.')) return false;
+  return true;
+};
 
 // Default Private Admin PIN (strictly unexposed in UI, changeable by Admin only)
 const DEFAULT_PRIVATE_ADMIN_PIN = 'FAC-Admin@2026';
@@ -235,17 +249,9 @@ export const saveStoredProfessors = (professors: Professor[]): void => {
 export const getStoredStudents = (): StudentProfile[] => {
   const stored = safeGet<StudentProfile[] | null>(KEYS.STUDENTS, null);
   if (!stored || !Array.isArray(stored) || stored.length === 0) {
-    const initialList: StudentProfile[] = [
-      {
-        ...initialStudentProfile,
-        pinCode: '123456',
-        status: 'active',
-      },
-    ];
-    safeSet(KEYS.STUDENTS, initialList);
-    return initialList;
+    return [];
   }
-  return stored.map((s) => ({
+  return stored.filter(isStudentRegistered).map((s) => ({
     ...s,
     acquiredBookIds: Array.isArray(s.acquiredBookIds) ? s.acquiredBookIds : [],
     bookProgress: s.bookProgress && typeof s.bookProgress === 'object' ? s.bookProgress : {},
@@ -258,14 +264,12 @@ export const saveStoredStudents = (students: StudentProfile[]): void => {
 
 export const getStoredCurrentStudent = (): StudentProfile => {
   const stored = safeGet<StudentProfile | null>(KEYS.CURRENT_STUDENT, null);
-  if (!stored) {
-    const defaultStudent: StudentProfile = {
+  if (!stored || !isStudentRegistered(stored)) {
+    return {
       ...initialStudentProfile,
-      pinCode: '123456',
-      status: 'active',
+      acquiredBookIds: [],
+      bookProgress: {},
     };
-    safeSet(KEYS.CURRENT_STUDENT, defaultStudent);
-    return defaultStudent;
   }
   const acquired = Array.isArray(stored.acquiredBookIds)
     ? stored.acquiredBookIds
