@@ -484,10 +484,10 @@ export const BookCatalog: React.FC<BookCatalogProps> = ({
                     ) : (
                       <button
                         onClick={() => onQuickBuy ? onQuickBuy(book) : onOpenDetails(book)}
-                        className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-stone-950 text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs"
+                        className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs"
                       >
-                        <ShoppingCart className="w-3.5 h-3.5" />
-                        <span>{lang === 'fr' ? 'Acheter' : 'اقتناء'}</span>
+                        <Lock className="w-3.5 h-3.5 text-white" />
+                        <span>{lang === 'fr' ? '🔒 Débloquer' : '🔒 مقفل · اقتناء'}</span>
                       </button>
                     )}
                   </div>

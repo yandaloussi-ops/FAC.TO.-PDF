@@ -10,6 +10,7 @@ import {
   Lock,
   LogOut,
   UserCheck,
+  User,
 } from 'lucide-react';
 import { FacLogo } from './FacLogo';
 import { Professor } from '../types';
@@ -159,8 +160,20 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </nav>
 
-        {/* Zone 3: Restyled Action Buttons (Professor Authentication + Lang + GORGEOUS ADMIN BUTTON) */}
+        {/* Zone 3: Restyled Action Buttons (Student Auth + Professor Authentication + Lang + GORGEOUS ADMIN BUTTON) */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Student Auth Button */}
+          {onOpenStudentAuth && (
+            <button
+              onClick={onOpenStudentAuth}
+              className="flex items-center gap-1.5 text-xs font-bold text-stone-950 bg-amber-500 hover:bg-amber-400 border border-amber-400 px-3 py-2 rounded-xl transition-all cursor-pointer shadow-sm"
+              title="دخول أو تسجيل حساب الطالب / Connexion ou Inscription Étudiant"
+            >
+              <User className="w-3.5 h-3.5 text-stone-950" />
+              <span>{lang === 'fr' ? 'Espace Étudiant' : 'تسجيل / دخول طالب'}</span>
+            </button>
+          )}
+
           {/* Professor Portal Access (Gated with Institutional Email Auth) */}
           {onOpenProfessorPortal && (
             <>

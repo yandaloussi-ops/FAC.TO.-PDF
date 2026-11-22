@@ -65,16 +65,16 @@ export const BookCard: React.FC<BookCardProps> = ({
         />
 
         {/* Hover overlay hint */}
-        <div className="absolute inset-0 bg-stone-950/40 opacity-0 group-hover/cover:opacity-100 transition-opacity duration-300 flex items-center justify-center p-3 text-center">
+        <div className="absolute inset-0 bg-stone-950/50 opacity-0 group-hover/cover:opacity-100 transition-opacity duration-300 flex items-center justify-center p-3 text-center">
           {isAcquired ? (
             <span className="bg-emerald-600 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-lg flex items-center gap-1.5">
               <BookOpen className="w-3.5 h-3.5" />
               <span>{lang === 'fr' ? 'Ouvrir le Cours' : 'فتح المقرر'}</span>
             </span>
           ) : (
-            <span className="bg-amber-400 text-stone-950 font-black text-xs px-3.5 py-1.5 rounded-xl shadow-lg flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>{lang === 'fr' ? 'Tarif Préférentiel' : 'التعريفة التفضيلية'}</span>
+            <span className="bg-rose-600 text-white font-black text-xs px-3.5 py-2 rounded-xl shadow-lg flex items-center gap-1.5">
+              <Lock className="w-3.5 h-3.5 text-white" />
+              <span>{lang === 'fr' ? '🔒 Verrouillé · Licence DRM' : '🔒 مقفل · يتطلب ترخيصاً'}</span>
             </span>
           )}
         </div>
@@ -87,9 +87,9 @@ export const BookCard: React.FC<BookCardProps> = ({
               <span>{lang === 'fr' ? 'Mémorisé' : 'مقتنى'}</span>
             </span>
           ) : (
-            <span className="flex items-center gap-1 bg-stone-900/85 backdrop-blur-xs text-stone-200 text-[10px] font-bold px-2 py-0.5 rounded-lg shadow-sm border border-stone-700">
-              <Lock className="w-3 h-3 text-amber-300" />
-              <span>{lang === 'fr' ? 'Licence In-App' : 'رخصة مشفرة'}</span>
+            <span className="flex items-center gap-1.5 bg-rose-950/90 backdrop-blur-xs text-rose-200 text-[10.5px] font-bold px-2.5 py-1 rounded-lg shadow-md border border-rose-500/40">
+              <Lock className="w-3.5 h-3.5 text-rose-400" />
+              <span>{lang === 'fr' ? '🔒 Verrouillé (DRM)' : '🔒 مقفل ومحمي (DRM)'}</span>
             </span>
           )}
         </div>
@@ -195,10 +195,10 @@ export const BookCard: React.FC<BookCardProps> = ({
                 <button
                   type="button"
                   onClick={handleCoverClick}
-                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-stone-950 text-xs font-black rounded-xl transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>{lang === 'fr' ? 'Acquérir' : 'اقتناء'}</span>
+                  <Lock className="w-3.5 h-3.5 text-white" />
+                  <span>{lang === 'fr' ? '🔒 Débloquer' : '🔒 فك القفل'}</span>
                 </button>
               </>
             )}

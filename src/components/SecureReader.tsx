@@ -156,9 +156,9 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
       ? pdfDoc.numPages
       : Math.max(book.totalPages || 0, book.pages?.length || 0, 1);
 
-  // Strict DRM page ceiling: Unacquired books CANNOT exceed sampleMaxPage (strictly 2 pages max)
-  const sampleLimit = Math.min(book.sampleMaxPage || 2, 2);
-  const maxAllowedPage = effectiveIsAcquired ? totalPagesCount : Math.min(sampleLimit, totalPagesCount);
+  // Strict DRM page ceiling: Paid books with no verified DRM license have 0 readable pages
+  const sampleLimit = effectiveIsAcquired ? totalPagesCount : 0;
+  const maxAllowedPage = effectiveIsAcquired ? totalPagesCount : 0;
 
   // Strict page boundary enforcement: Never allow currentPage > maxAllowedPage for unpaid books
   useEffect(() => {
@@ -440,7 +440,7 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
     let isCancelled = false;
     let renderTask: any = null;
 
-    if (!effectiveIsAcquired && currentPage > sampleLimit) {
+    if (!effectiveIsAcquired) {
       if (canvasRef.current) {
         const ctx = canvasRef.current.getContext('2d');
         if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
@@ -1000,18 +1000,18 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
         )}
 
         {/* Locked Sample Notice for Unacquired Books */}
-        {!effectiveIsAcquired && currentPage > sampleLimit ? (
-          <div className="max-w-xl mx-auto my-12 p-8 bg-stone-900 border-2 border-amber-500/50 text-white rounded-3xl shadow-2xl text-center">
-            <div className="w-16 h-16 mx-auto bg-amber-500/20 text-amber-400 border border-amber-500/40 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-amber-500/10">
+        {!effectiveIsAcquired ? (
+          <div className="max-w-xl mx-auto my-12 p-8 bg-stone-900 border-2 border-rose-500/50 text-white rounded-3xl shadow-2xl text-center">
+            <div className="w-16 h-16 mx-auto bg-rose-500/20 text-rose-400 border border-rose-500/40 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-rose-500/10">
               <Lock className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-black text-amber-400 mb-2">
-              {lang === 'fr' ? 'Fin de l\'Extrait Gratuit Autorisé' : 'نهاية العينة المجانية للقراءة'}
+            <h3 className="text-xl font-black text-rose-400 mb-2">
+              {lang === 'fr' ? 'Contenu Verrouillé · Licence DRM Requise' : '🔒 محتوى مقفل ومحمي بنظام DRM'}
             </h3>
             <p className="text-xs text-stone-300 leading-relaxed mb-6">
               {lang === 'fr'
-                ? `Vous avez atteint la limite de prévisualisation (page ${sampleLimit}/${totalPagesCount}). Pour accéder à la totalité du polycopié sans restriction, activez votre licence étudiante.`
-                : `لقد وصلت إلى نهاية العينة المجانية المصرح بها (ص ${sampleLimit} من أصل ${totalPagesCount} صفحة). لمتابعة قراءة باقي صفحات المطبوع، يرجى تفعيل ترخيصك الطلابي.`}
+                ? `Ce polycopié universitaire (${totalPagesCount} pages) est strictement protégé contre la copie et la diffusion non autorisée. Pour accéder à la totalité du cours, veuillez vous inscrire et activer votre licence nominative.`
+                : `هذا المطبوع الأكاديمي (${totalPagesCount} صفحة) محمي بالكامل بتقنية DRM ضد الاستنساخ والتسريب. للاطلاع على صفحات المقرر، يرجى تسجيل حسابك الطلابي وتفعيل الترخيص الاسمي الخاص بك.`}
             </p>
 
             <div className="space-y-4">
@@ -1025,9 +1025,9 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
                     onAcquireBook(book.id);
                   }
                 }}
-                className="w-full py-3.5 px-6 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-sm rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3.5 px-6 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-black text-sm rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                <Sparkles className="w-4 h-4 text-stone-950" />
+                <Lock className="w-4 h-4 text-white" />
                 <span>
                   {book.isFree
                     ? lang === 'fr'
@@ -1035,7 +1035,7 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
                       : 'تفعيل المطبوع مجاناً'
                     : lang === 'fr'
                     ? `Acheter le polycopié (${actualPrice} DH · Tarif Étudiant)`
-                    : `اقتناء المطبوع والترخيص الرقمي (${actualPrice} درهم · تعريفة مدعومة)`}
+                    : `🔒 فك القفل واقتناء المطبوع (${actualPrice} درهم · تعريفة مدعومة)`}
                 </span>
               </button>
 

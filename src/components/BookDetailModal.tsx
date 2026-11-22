@@ -17,6 +17,7 @@ import {
   Download,
   ShoppingBag,
   Share2,
+  Lock,
 } from 'lucide-react';
 import { generateDefaultCoverSvg } from '../utils/storage';
 import { BookShareModal } from './BookShareModal';
@@ -287,14 +288,15 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
                       <button
                         onClick={() => {
                           onClose();
-                          onOpenReader(book);
+                          onAcquire(book);
                         }}
-                        className="py-3 px-4 border border-stone-300 hover:border-stone-400 text-stone-800 font-semibold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="py-3 px-4 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
                       >
+                        <Lock className="w-4 h-4 text-white" />
                         <span>
                           {lang === 'fr'
-                            ? `Consulter l'extrait (P. 1-${book.sampleMaxPage})`
-                            : `معاينة العينة (ص 1-${book.sampleMaxPage})`}
+                            ? '🔒 Débloquer le cours complet (Licence DRM)'
+                            : '🔒 فك قفل المقرر كاملاً (رخصة DRM)'}
                         </span>
                       </button>
 

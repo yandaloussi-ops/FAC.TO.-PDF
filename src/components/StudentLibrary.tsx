@@ -25,11 +25,13 @@ import {
   Check,
   ShoppingCart,
   UserCheck,
+  User,
   Edit2,
   Search,
   Filter,
   Share2,
 } from 'lucide-react';
+import { isStudentRegistered } from '../utils/storage';
 import { BookShareModal } from './BookShareModal';
 import { useEffect } from 'react';
 import { subscribeToStudentProfile } from '../services/firestoreService';
@@ -241,97 +243,122 @@ export const StudentLibrary: React.FC<StudentLibraryProps> = ({
         </div>
       )}
 
-      {/* Student Academic Identity Card with Direct Edit Profile Button */}
-      <div className="mb-8 bg-gradient-to-br from-stone-900 to-stone-850 border border-stone-800 rounded-3xl p-6 sm:p-8 text-stone-100 shadow-xl relative overflow-hidden">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-stone-800">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-amber-400 mb-1">
-              <Award className="w-4 h-4" />
-              <span>{lang === 'fr' ? 'Carte d\'Étudiant Numérique Certifiée' : 'بطاقة الطالب الجامعية المعتمدة'}</span>
-              <span className="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded-md font-bold">
-                ✓ Étudiant Enregistré
-              </span>
+      {/* Student Academic Identity Card or Guest Lock Card */}
+      {!isStudentRegistered(student) ? (
+        <div className="mb-8 bg-stone-900 border-2 border-amber-500/40 rounded-3xl p-6 sm:p-8 text-center shadow-xl">
+          <div className="w-16 h-16 mx-auto mb-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-center">
+            <Lock className="w-8 h-8 text-amber-400" />
+          </div>
+          <h2 className="text-xl font-black text-white mb-2">
+            {lang === 'fr' ? 'Espace Étudiant Verrouillé' : '🔒 فضاء الطالب الجامعي مقفل'}
+          </h2>
+          <p className="text-xs text-stone-300 max-w-lg mx-auto mb-6 leading-relaxed">
+            {lang === 'fr'
+              ? 'Connectez-vous ou créez votre compte étudiant pour consulter vos polycopiés acquis, vos licences DRM actives et vos reçus officiels.'
+              : 'يرجى تسجيل الدخول أو إنشاء حسابك الأكاديمي لمطالعة مقرراتك المقتناة، رخص DRM النشطة، وتحميل إيصالات الأداء الرسمية.'}
+          </p>
+          {onEditProfile && (
+            <button
+              onClick={onEditProfile}
+              className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer inline-flex items-center gap-2"
+            >
+              <User className="w-4 h-4" />
+              <span>{lang === 'fr' ? 'Se Connecter / Créer un Compte' : 'تسجيل الدخول / إنشاء حساب طالب'}</span>
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="mb-8 bg-gradient-to-br from-stone-900 to-stone-850 border border-stone-800 rounded-3xl p-6 sm:p-8 text-stone-100 shadow-xl relative overflow-hidden">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-stone-800">
+            <div>
+              <div className="flex items-center gap-2 text-xs font-semibold text-amber-400 mb-1">
+                <Award className="w-4 h-4" />
+                <span>{lang === 'fr' ? 'Carte d\'Étudiant Numérique Certifiée' : 'بطاقة الطالب الجامعية المعتمدة'}</span>
+                <span className="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded-md font-bold">
+                  ✓ Étudiant Enregistré
+                </span>
+              </div>
+              <h2 className="text-2xl font-extrabold text-white">{student.fullName}</h2>
+              <p className="text-xs text-stone-400 mt-0.5">
+                {student.university} · {student.faculty}
+              </p>
             </div>
-            <h2 className="text-2xl font-extrabold text-white">{student.fullName}</h2>
-            <p className="text-xs text-stone-400 mt-0.5">
-              {student.university} · {student.faculty}
-            </p>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="p-3 bg-stone-800/80 rounded-xl border border-stone-700/80">
+                <div className="text-[10px] text-stone-400 uppercase tracking-wider">
+                  {lang === 'fr' ? 'N° Étudiant (Apogée)' : 'رقم التسجيل الجامعي'}
+                </div>
+                <div className="font-mono text-xs font-bold text-white">{student.studentId}</div>
+              </div>
+
+              <div className="p-3 bg-stone-800/80 rounded-xl border border-stone-700/80">
+                <div className="text-[10px] text-stone-400 uppercase tracking-wider">
+                  {lang === 'fr' ? 'Adresse E-mail' : 'البريد الإلكتروني'}
+                </div>
+                <div className="font-mono text-xs font-bold text-amber-300">{student.email}</div>
+              </div>
+
+              {onEditProfile && (
+                <button
+                  type="button"
+                  onClick={onEditProfile}
+                  className="px-3.5 py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                  title="Modifier mes coordonnées, faculté, filière et téléphone"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  <span>{lang === 'fr' ? 'Mettre à jour ma Fiche' : 'تحيين معطياتي'}</span>
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="p-3 bg-stone-800/80 rounded-xl border border-stone-700/80">
-              <div className="text-[10px] text-stone-400 uppercase tracking-wider">
-                {lang === 'fr' ? 'N° Étudiant (Apogée)' : 'رقم التسجيل الجامعي'}
+          {/* DRM Device & Protection Row */}
+          <div className="pt-6 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-emerald-950/60 text-emerald-400 rounded-lg border border-emerald-800">
+                <ShieldCheck className="w-5 h-5" />
               </div>
-              <div className="font-mono text-xs font-bold text-white">{student.studentId}</div>
+              <div>
+                <div className="font-bold text-white">
+                  {lang === 'fr' ? 'Protection DRM Active' : 'حماية المحتوى مشغلة'}
+                </div>
+                <div className="text-[11px] text-stone-400">
+                  {lang === 'fr' ? 'Lecteur In-App sécurisé' : 'قراءة آمنة حصرياً بالتطبيق'}
+                </div>
+              </div>
             </div>
 
-            <div className="p-3 bg-stone-800/80 rounded-xl border border-stone-700/80">
-              <div className="text-[10px] text-stone-400 uppercase tracking-wider">
-                {lang === 'fr' ? 'Adresse E-mail' : 'البريد الإلكتروني'}
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-stone-800 text-stone-300 rounded-lg border border-stone-700">
+                <KeyRound className="w-5 h-5" />
               </div>
-              <div className="font-mono text-xs font-bold text-amber-300">{student.email}</div>
+              <div>
+                <div className="font-bold text-white font-mono text-[11px]">
+                  {student.drmLicenseKey ? student.drmLicenseKey.slice(0, 16) : 'FAC-2026-X9A2'}...
+                </div>
+                <div className="text-[11px] text-stone-400">
+                  {lang === 'fr' ? 'Clé de licence individuelle' : 'مفتاح التشفير الفردي'}
+                </div>
+              </div>
             </div>
 
-            {onEditProfile && (
-              <button
-                type="button"
-                onClick={onEditProfile}
-                className="px-3.5 py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
-                title="Modifier mes coordonnées, faculté, filière et téléphone"
-              >
-                <Edit2 className="w-3.5 h-3.5" />
-                <span>{lang === 'fr' ? 'Mettre à jour ma Fiche' : 'تحيين معطياتي'}</span>
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-stone-800 text-stone-300 rounded-lg border border-stone-700">
+                <Laptop className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="font-bold text-white">
+                  {lang === 'fr' ? 'Poste de Consultation Lié' : 'الجهاز المعتمد للقراءة'}
+                </div>
+                <div className="text-[11px] text-stone-400">
+                  {student.registeredDevice || 'PC / Navigateur Sécurisé (Chiffré)'}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-
-        {/* DRM Device & Protection Row */}
-        <div className="pt-6 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-emerald-950/60 text-emerald-400 rounded-lg border border-emerald-800">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="font-bold text-white">
-                {lang === 'fr' ? 'Protection DRM Active' : 'حماية المحتوى مشغلة'}
-              </div>
-              <div className="text-[11px] text-stone-400">
-                {lang === 'fr' ? 'Lecteur In-App sécurisé' : 'قراءة آمنة حصرياً بالتطبيق'}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-stone-800 text-stone-300 rounded-lg border border-stone-700">
-              <KeyRound className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="font-bold text-white font-mono text-[11px]">
-                {student.drmLicenseKey ? student.drmLicenseKey.slice(0, 16) : 'FAC-2026-X9A2'}...
-              </div>
-              <div className="text-[11px] text-stone-400">
-                {lang === 'fr' ? 'Clé de licence individuelle' : 'مفتاح التشفير الفردي'}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-stone-800 text-stone-300 rounded-lg border border-stone-700">
-              <Laptop className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="font-bold text-white">
-                {lang === 'fr' ? 'Poste de Consultation Lié' : 'الجهاز المعتمد للقراءة'}
-              </div>
-              <div className="text-[11px] text-stone-400">
-                {student.registeredDevice || 'PC / Navigateur Sécurisé (Chiffré)'}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Action Header: Redeem code + Quick buy shortcut */}
       <div className="mb-8 p-5 bg-stone-50 border border-stone-200 rounded-3xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 shadow-xs">
