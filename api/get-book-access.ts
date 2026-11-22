@@ -16,7 +16,7 @@ const ADMIN_SECRET = process.env.ADMIN_PIN || 'FAC-Admin@2026';
 
 // Server-side private storage mappings with authenticated storage tokens
 const STATIC_BOOK_STORAGE_URLS: Record<string, string> = {
-  'book-prof-1793748053309': 'https://firebasestorage.googleapis.com/v0/b/fac-en-pdf.firebasestorage.app/o/books%2Fpdfs%2F1793748053367_%D9%83%D8%AA%D8%A7%D8%A8_%D9%85%D8%A8%D8%A7%D8%AD%D8%AB_%D9%81%D9%8A_%D8%B9%D9%84%D9%85_%D8%A7%D9%84%D8%A7%D8%AC%D8%AA%D9%85%D8%A7%D8%B9_%D8%A7%D9%84%D9%82%D8%A7%D9%86%D9%8A_A5%20(3).pdf?alt=media&token=b1c1aabe-d542-4dd6-a159-38b2b8dc62e2',
+  'book-prof-1793748053309': 'https://firebasestorage.googleapis.com/v0/b/fac-en-pdf.firebasestorage.app/o/books%2Fpdfs%2F1793748053367_%D9%83%D8%AA%D8%A7%D8%A8_%D9%85%D8%A8%D8%A7%D8%AD%D8%AB_%D9%81%D9%8A_%D8%B9%D9%84%D9%85_%D8%A7%D9%84%D8%A7%D8%AC%D8%AA%D9%85%D8%A7%D8%B9_%D8%A7%D9%84%D9%82%D8%A7%D9%86%D9%88%D9%86%D9%8A_A5%20(3).pdf?alt=media&token=b1c1aabe-d542-4dd6-a159-38b2b8dc62e2',
   'book-prof-1794164335508': 'https://firebasestorage.googleapis.com/v0/b/fac-en-pdf.firebasestorage.app/o/books%2Fpdfs%2F1794164335583_%D9%85%D8%A8%D8%A7%D8%AD%D8%AB_%D9%81%D9%8A_%D8%A7%D9%84%D8%B9%D9%84%D9%88%D9%85_%D8%A7%D9%84%D8%B3%D9%8A%D8%A7%D8%B3%D9%8A%D8%A9_%D9%85%D9%86%D9%82%D8%AD_A5.docx.pdf?alt=media&token=0d15384c-fe03-45d5-8c85-c7ca1ad7f171',
 };
 
