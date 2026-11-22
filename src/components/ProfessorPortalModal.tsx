@@ -36,7 +36,7 @@ import { generateDefaultCoverSvg } from '../utils/storage';
 import { saveBookPdf, compressCoverImage, getPdfPageCount } from '../utils/pdfStorage';
 import { useAcademicStructure, registerDynamicAcademicUnit } from '../utils/academicStructureStorage';
 import { BookShareModal } from './BookShareModal';
-import { saveBookToFirestore, saveProfessorToFirestore, uploadFileToStorage } from '../services/firestoreService';
+import { saveBookToFirestore, saveBookFileRecord, saveProfessorToFirestore, uploadFileToStorage } from '../services/firestoreService';
 if (typeof window !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
     'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/pdf.worker.min.mjs';
@@ -301,14 +301,14 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
         // 1. حساب عدد الصفحات الفعلي للملف
         const pageCount = await getPdfPageCount(file);
 
-        // 2. الرفع السحابي الفعلي إلى Firebase Storage
-        const cloudPdfUrl = await uploadFileToStorage(file, 'books/pdfs');
+        // 2. الرفع السحابي الفعلي إلى Firebase Storage وحفظ المسار في مجموعة خاصة
+        const { cloudPdfUrl, storagePath } = await uploadFileToStorage(file, 'books/pdfs');
+        await saveBookFileRecord(bookId, storagePath, file.name);
 
-        // 3. التحديث الفوري لوثيقة الكتاب في Firestore
+        // 3. التحديث الفوري لوثيقة الكتاب في Firestore دون كشف الرابط المباشر
         try {
           const bookRef = doc(db, 'books', bookId);
           await updateDoc(bookRef, {
-            pdfUrl: cloudPdfUrl,
             totalPages: pageCount || 100,
             hasPdf: true,
             pdfFileName: file.name,
@@ -322,7 +322,7 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
         await saveBookPdf(bookId, file);
 
         if (onUpdateBookPdf) {
-          onUpdateBookPdf(bookId, cloudPdfUrl, pageCount || undefined, file.name);
+          onUpdateBookPdf(bookId, '', pageCount || undefined, file.name);
         }
 
         setProfPdfToast(
@@ -423,10 +423,13 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
       let storedPdfUrl: string | undefined = undefined;
       let detectedPages: number | null = null;
 
+      let storedStoragePath = '';
       if (uploadedPdfFile) {
         try {
           detectedPages = await getPdfPageCount(uploadedPdfFile);
-          storedPdfUrl = await uploadFileToStorage(uploadedPdfFile, 'books/pdfs');
+          const uploadRes = await uploadFileToStorage(uploadedPdfFile, 'books/pdfs');
+          storedPdfUrl = uploadRes.downloadUrl;
+          storedStoragePath = uploadRes.storagePath;
         } catch (pdfErr) {
           console.warn('PDF storage warning, continuing with in-app reader:', pdfErr);
         }
@@ -600,8 +603,11 @@ const [profPdfToast, setProfPdfToast] = useState<string | null>(null);
               },
             ],
       };
-// 1. حفظ بيانات الكتاب سحابياً في Firestore
-  await saveBookToFirestore(newBook);
+      if (storedStoragePath) {
+        await saveBookFileRecord(newBookId, storedStoragePath, uploadedFileName || 'course.pdf');
+      }
+      // 1. حفظ بيانات الكتاب سحابياً في Firestore
+      await saveBookToFirestore(newBook);
 
   if (onUploadBook) {
     onUploadBook(newBook);

@@ -250,20 +250,29 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
     }
   };
 
-  // Check IndexedDB / memory storage for real PDF on mount
+  // Check IndexedDB / memory storage for real PDF on mount, or request authenticated serverless endpoint
   useEffect(() => {
     let isMounted = true;
     loadBookPdf(book.id, book).then((storedUrl) => {
       if (isMounted && storedUrl) {
         setPdfUrl(storedUrl);
-      } else if (isMounted && book.pdfUrl && !book.pdfUrl.startsWith('blob:')) {
-        setPdfUrl(book.pdfUrl);
+      } else if (isMounted) {
+        // Construct protected serverless route with authentication parameters
+        const params = new URLSearchParams();
+        params.set('bookId', book.id);
+        if (student?.email) params.set('email', student.email);
+        if (student?.phone) params.set('phone', student.phone);
+        if (student?.studentId) params.set('studentId', student.studentId);
+        if (student?.drmLicenseKey) params.set('key', student.drmLicenseKey);
+        if (isAuthorOrAdmin) params.set('adminPin', 'FAC-Admin@2026');
+        
+        setPdfUrl(`/api/get-book-access?${params.toString()}`);
       }
     });
     return () => {
       isMounted = false;
     };
-  }, [book.id, book.pdfUrl]);
+  }, [book.id, student?.email, student?.phone, student?.studentId, student?.drmLicenseKey, isAuthorOrAdmin]);
 
   // Load PDF Document when pdfUrl changes
   useEffect(() => {
@@ -293,14 +302,17 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
       }
     }
 
-    // Resolve URL through serverless proxy when hosted on Firebase Storage to completely eliminate CORS blocks
-    const effectiveUrl =
-      pdfUrl.includes('firebasestorage.googleapis.com')
-        ? `/api/pdf-proxy?url=${encodeURIComponent(pdfUrl)}`
-        : pdfUrl;
+    const headers: Record<string, string> = {};
+    if (student?.email) headers['x-student-email'] = student.email;
+    if (student?.phone) headers['x-student-phone'] = student.phone;
+    if (student?.studentId) headers['x-student-id'] = student.studentId;
+    if (student?.drmLicenseKey) headers['x-drm-key'] = student.drmLicenseKey;
+    if (isAuthorOrAdmin) headers['x-admin-pin'] = 'FAC-Admin@2026';
 
     const loadingTask = pdfjsLib.getDocument({
-      url: effectiveUrl,
+      url: pdfUrl,
+      httpHeaders: headers,
+      withCredentials: true,
       cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/cmaps/',
       cMapPacked: true,
       standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/standard_fonts/',
@@ -315,36 +327,14 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
       })
       .catch((err) => {
         if (!isCancelled) {
-          // If proxy failed, try direct URL as fallback
-          if (effectiveUrl !== pdfUrl) {
-            console.warn('Proxy load failed, trying direct URL:', err);
-            const fallbackTask = pdfjsLib.getDocument({
-              url: pdfUrl,
-              cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/cmaps/',
-              cMapPacked: true,
-              standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/standard_fonts/',
-            });
-            fallbackTask.promise
-              .then((fallbackDoc) => {
-                if (!isCancelled) {
-                  setPdfDoc(fallbackDoc);
-                  setPdfLoading(false);
-                }
-              })
-              .catch((directErr) => {
-                if (!isCancelled) {
-                  console.warn('Direct PDF load failed:', directErr);
-                  setPdfError(directErr.message || 'Erreur de chargement');
-                  setPdfLoading(false);
-                  setReaderMode('native');
-                }
-              });
-            return;
-          }
-          console.warn('Could not load PDF via Canvas worker:', err);
-          setPdfError(err.message || 'Erreur de chargement');
+          console.warn('PDF stream loading failed:', err);
+          setPdfError(
+            lang === 'fr'
+              ? 'Accès refusé · Licence DRM active requise pour ce cours.'
+              : '🔒 تم رفض الوصول · يلزم ترخيص DRM نشط لمطالعة هذا المقرر.'
+          );
           setPdfLoading(false);
-          setReaderMode('native');
+          setPdfDoc(null);
         }
       });
 
@@ -354,7 +344,7 @@ export const SecureReader: React.FC<SecureReaderProps> = ({
         loadingTask.destroy();
       } catch {}
     };
-  }, [pdfUrl]);
+  }, [pdfUrl, student?.email, student?.phone, student?.studentId, student?.drmLicenseKey, isAuthorOrAdmin, lang]);
 
   // Handle PDF Custom Upload
   const handleCustomPdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
