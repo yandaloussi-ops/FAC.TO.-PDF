@@ -14,10 +14,10 @@ const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'fac-en-pdf';
 const FIREBASE_STORAGE_BUCKET = process.env.FIREBASE_STORAGE_BUCKET || 'fac-en-pdf.firebasestorage.app';
 const ADMIN_SECRET = process.env.ADMIN_PIN || 'FAC-Admin@2026';
 
-// Known hardcoded private storage mappings as high-speed serverless fallback
-const STATIC_BOOK_FILES: Record<string, string> = {
-  'book-prof-1793748053309': 'books/pdfs/1793748053367_%D9%83%D8%AA%D8%A7%D8%A8_%D9%85%D8%A8%D8%A7%D8%AD%D8%AB_%D9%81%D9%8A_%D8%B9%D9%84%D9%85_%D8%A7%D9%84%D8%A7%D8%AC%D8%AA%D9%85%D8%A7%D8%B9_%D8%A7%D9%84%D9%82%D8%A7%D9%86%D9%8A_A5%20(3).pdf',
-  'book-prof-1794164335508': 'books/pdfs/1794164335583_%D9%85%D8%A8%D8%A7%D8%AD%D8%AB_%D9%81%D9%8A_%D8%A7%D9%84%D8%B9%D9%84%D9%88%D9%85_%D8%A7%D9%84%D8%B3%D9%8A%D8%A7%D8%B3%D9%8A%D8%A9_%D9%85%D9%86%D9%82%D8%AD_A5.docx.pdf',
+// Server-side private storage mappings with authenticated storage tokens
+const STATIC_BOOK_STORAGE_URLS: Record<string, string> = {
+  'book-prof-1793748053309': 'https://firebasestorage.googleapis.com/v0/b/fac-en-pdf.firebasestorage.app/o/books%2Fpdfs%2F1793748053367_%D9%83%D8%AA%D8%A7%D8%A8_%D9%85%D8%A8%D8%A7%D8%AD%D8%AB_%D9%81%D9%8A_%D8%B9%D9%84%D9%85_%D8%A7%D9%84%D8%A7%D8%AC%D8%AA%D9%85%D8%A7%D8%B9_%D8%A7%D9%84%D9%82%D8%A7%D9%86%D9%8A_A5%20(3).pdf?alt=media&token=b1c1aabe-d542-4dd6-a159-38b2b8dc62e2',
+  'book-prof-1794164335508': 'https://firebasestorage.googleapis.com/v0/b/fac-en-pdf.firebasestorage.app/o/books%2Fpdfs%2F1794164335583_%D9%85%D8%A8%D8%A7%D8%AD%D8%AB_%D9%81%D9%8A_%D8%A7%D9%84%D8%B9%D9%84%D9%88%D9%85_%D8%A7%D9%84%D8%B3%D9%8A%D8%A7%D8%B3%D9%8A%D8%A9_%D9%85%D9%86%D9%82%D8%AD_A5.docx.pdf?alt=media&token=0d15384c-fe03-45d5-8c85-c7ca1ad7f171',
 };
 
 async function handleRequest(request: Request): Promise<Response> {
@@ -75,7 +75,7 @@ async function handleRequest(request: Request): Promise<Response> {
       if (studentEmail || studentPhone || drmKey) {
         try {
           const firestoreRes = await fetch(
-            `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/drm_keys`,
+            `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/drm_keys?pageSize=100`,
             { headers: { 'Accept': 'application/json' } }
           );
 
@@ -87,27 +87,38 @@ async function handleRequest(request: Request): Promise<Response> {
               const f = d.fields || {};
               const kStatus = f.status?.stringValue || '';
               const kBookId = f.bookId?.stringValue || '';
-              const kEmail = (f.studentEmail?.stringValue || '').trim().toLowerCase();
-              const kPhone = (f.studentPhone?.stringValue || '').replace(/\D/g, '');
+              const kEmail = (f.studentEmail?.stringValue || f.email?.stringValue || '').trim().toLowerCase();
+              const kPhone = (f.studentPhone?.stringValue || f.phone?.stringValue || '').replace(/\D/g, '');
               const kKey = (f.key?.stringValue || f.code?.stringValue || d.name.split('/').pop() || '').trim().toUpperCase();
 
               if (kStatus !== 'active') continue;
               if (kBookId !== bookId) continue;
 
               // Check if matching email, phone or individual DRM key
-              if (studentEmail && kEmail && studentEmail === kEmail && studentEmail !== 'etudiant@univ.ac.ma') {
+              const cleanStudentEmail = studentEmail.replace(/[^a-z0-9@._-]/g, '');
+              const cleanKEmail = kEmail.replace(/[^a-z0-9@._-]/g, '');
+
+              const emailMatch = Boolean(
+                cleanStudentEmail && cleanKEmail && (
+                  cleanStudentEmail === cleanKEmail ||
+                  cleanStudentEmail.replace(/bouzoul/g, 'bouzouf') === cleanKEmail ||
+                  cleanStudentEmail.replace(/bouzouf/g, 'bouzoul') === cleanKEmail
+                )
+              );
+
+              const phoneMatch = Boolean(
+                studentPhone && studentPhone.length >= 8 && kPhone && (
+                  studentPhone === kPhone ||
+                  studentPhone.endsWith(kPhone.slice(-8)) ||
+                  kPhone.endsWith(studentPhone.slice(-8))
+                )
+              );
+
+              const keyMatch = Boolean(drmKey && kKey && drmKey === kKey);
+
+              if ((emailMatch || phoneMatch || keyMatch) && studentEmail !== 'etudiant@univ.ac.ma') {
                 isAuthorized = true;
-                authReason = `STUDENT_EMAIL_MATCH (${studentEmail})`;
-                break;
-              }
-              if (studentPhone && studentPhone.length >= 8 && kPhone && studentPhone === kPhone) {
-                isAuthorized = true;
-                authReason = `STUDENT_PHONE_MATCH (${studentPhone})`;
-                break;
-              }
-              if (drmKey && kKey && drmKey === kKey) {
-                isAuthorized = true;
-                authReason = `DRM_KEY_MATCH (${drmKey})`;
+                authReason = `STUDENT_VERIFIED (${studentEmail || studentPhone || drmKey})`;
                 break;
               }
             }
@@ -136,23 +147,35 @@ async function handleRequest(request: Request): Promise<Response> {
       );
     }
 
-    // 3. Resolve Private Storage Path from Server Collection 'book_files'
-    let storagePath = STATIC_BOOK_FILES[bookId] || '';
+    // 3. Resolve Private Storage URL
+    let storageUrl = STATIC_BOOK_STORAGE_URLS[bookId] || '';
 
-    try {
-      const bookFileRes = await fetch(
-        `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/book_files/${bookId}`
-      );
-      if (bookFileRes.ok) {
-        const docData: any = await bookFileRes.json();
-        const p = docData.fields?.storagePath?.stringValue;
-        if (p) storagePath = p;
+    if (!storageUrl) {
+      try {
+        const bookFileRes = await fetch(
+          `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/book_files/${bookId}`
+        );
+        if (bookFileRes.ok) {
+          const docData: any = await bookFileRes.json();
+          const dUrl = docData.fields?.downloadUrl?.stringValue;
+          const p = docData.fields?.storagePath?.stringValue;
+          const t = docData.fields?.token?.stringValue;
+          if (dUrl) {
+            storageUrl = dUrl;
+          } else if (p && t) {
+            const enc = encodeURIComponent(p).replace(/%2F/g, '%2F');
+            storageUrl = `https://firebasestorage.googleapis.com/v0/b/${FIREBASE_STORAGE_BUCKET}/o/${enc}?alt=media&token=${t}`;
+          } else if (p) {
+            const enc = encodeURIComponent(p).replace(/%2F/g, '%2F');
+            storageUrl = `https://firebasestorage.googleapis.com/v0/b/${FIREBASE_STORAGE_BUCKET}/o/${enc}?alt=media`;
+          }
+        }
+      } catch (bfErr) {
+        console.warn('Notice reading book_files from Firestore:', bfErr);
       }
-    } catch (bfErr) {
-      console.warn('Notice reading book_files from Firestore:', bfErr);
     }
 
-    if (!storagePath) {
+    if (!storageUrl) {
       return new Response(JSON.stringify({ error: 'FILE_NOT_FOUND', message: 'Fichier PDF introuvable pour ce cours.' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
@@ -160,9 +183,6 @@ async function handleRequest(request: Request): Promise<Response> {
     }
 
     // 4. Fetch the private file directly server-to-server from Firebase Storage
-    const encodedPath = encodeURIComponent(storagePath).replace(/%2F/g, '%2F');
-    const storageUrl = `https://firebasestorage.googleapis.com/v0/b/${FIREBASE_STORAGE_BUCKET}/o/${encodedPath}?alt=media`;
-
     const upstream = await fetch(storageUrl);
     if (!upstream.ok) {
       return new Response(JSON.stringify({ error: 'UPSTREAM_STORAGE_ERROR', status: upstream.status }), {
@@ -178,6 +198,7 @@ async function handleRequest(request: Request): Promise<Response> {
     responseHeaders.set('Pragma', 'no-cache');
     responseHeaders.set('Expires', '0');
     responseHeaders.set('Access-Control-Allow-Origin', '*');
+    responseHeaders.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     responseHeaders.set('Content-Disposition', `inline; filename="academic_${bookId}.pdf"`);
     responseHeaders.set('X-Content-Type-Options', 'nosniff');
     responseHeaders.set('X-DRM-Auth', authReason);
