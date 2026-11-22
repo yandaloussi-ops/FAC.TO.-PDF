@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 1. Books Catalog Metadata:
+    // Publicly readable for catalog display, but NO client can create, update, or delete.
+    match /books/{bookId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    
+    // 2. Private Book Files:
+    // Contains storagePaths and file metadata. 100% BLOCKED from all frontend clients.
+    match /book_files/{bookId} {
+      allow read, write: if false;
+    }
+    
+    // 3. DRM Keys & Entitlements:
+    // Clients can submit a pending license request, but CANNOT self-activate or tamper with keys.
+    match /drm_keys/{keyId} {
+      allow read: if true;
+      allow create: if request.resource.data.status == 'pending' || request.resource.data.status == 'en_attente';
+      allow update, delete: if false;
+    }
+    
+    // 4. Payment Orders:
+    // Clients can create pending orders, but CANNOT mark them paid or successful.
+    match /paymentOrders/{orderId} {
+      allow read: if true;
+      allow create: if request.resource.data.status == 'en_attente' || request.resource.data.status == 'pending';
+      allow update, delete: if false;
+    }
+    
+    // 5. Students Collection:
+    // Students can register and update their profile details, but CANNOT modify acquiredBookIds directly.
+    match /students/{studentId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['acquiredBookIds']);
+      allow delete: if false;
+    }
+    
+    // 6. Professors:
+    // Read publicly, modifications restricted to backend.
+    match /professors/{profId} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}

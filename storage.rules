@@ -1,0 +1,24 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // 1. Paid PDF Books:
+    // Strictly BLOCK ALL DIRECT CLIENT ACCESS.
+    // Files can ONLY be accessed via serverless API routes with short-lived signed URLs.
+    match /books/pdfs/{allPaths=**} {
+      allow read, write: if false;
+    }
+    
+    // 2. Public Covers and Graphics:
+    // Freely viewable by all visitors for catalog display.
+    match /books/covers/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /users/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}
