@@ -1,14 +1,14 @@
 import { Book, StudentProfile } from '../types';
 
 export const initialStudentProfile: StudentProfile = {
-  id: 'usr_student_01',
-  studentId: 'ETU-2026-9482',
-  fullName: 'Étudiant Universitaire (Compte Actif)',
-  email: 'etudiant@univ.ac.ma',
-  faculty: 'Faculté des Sciences Juridiques, Économiques et Sociales',
-  university: 'Université Abdelmalek Essaâdi (UAE)',
+  id: '',
+  studentId: '',
+  fullName: '',
+  email: '',
+  faculty: '',
+  university: '',
   ipAddress: '196.200.142.12',
-  drmLicenseKey: 'DRM-FAC-SECURE-89A4E701-X992',
+  drmLicenseKey: '',
   acquiredBookIds: [],
   bookProgress: {},
 };
@@ -521,8 +521,8 @@ export const MOCK_BOOKS: Book[] = [
     year: '2026',
     edition: '3ème Édition Révisée - Spéciale Filières Informatiques',
     totalPages: 6,
-    priceMAD: 0,
-    isFree: true,
+    priceMAD: 25,
+    isFree: false,
     coverImage: '/src/assets/images/sciences_technologies_cover_1791375924797.jpg',
     isbn: '978-9954-71-331-9',
     description: 'Polycopié académique d\'excellence mis à disposition gratuitement pour les étudiants en Sciences Mathématiques et Informatiques (SMI/SMA/Génie Logiciel). Arbres AVL, graphes, algorithmes de Dijkstra, programmation dynamique et analyse de complexité.',
@@ -1220,78 +1220,7 @@ export const INITIAL_PROFESSORS = [
   },
 ];
 
-export const INITIAL_DRM_LICENSES = [
-  {
-    id: 'lic-0',
-    licenseCode: 'FAC-2026-POL-S101',
-    bookId: 'book-science-politique',
-    bookTitle: 'المدخل للعلوم السياسية والنظرية العامة للدولة',
-    studentEmail: 'etudiant@univ.ac.ma',
-    studentId: 'ETU-2026-9482',
-    issuedAt: '2026-10-07 11:30',
-    status: 'active' as const,
-  },
-  {
-    id: 'lic-1',
-    licenseCode: 'FAC-2026-X892-K01',
-    bookId: 'book-droit-civil',
-    bookTitle: 'Précis de Droit Civil : La Théorie Générale des Obligations',
-    studentEmail: 'etudiant@univ.ac.ma',
-    studentId: 'ETU-2026-9482',
-    issuedAt: '2026-10-07 08:30',
-    status: 'active' as const,
-  },
-  {
-    id: 'lic-2',
-    licenseCode: 'FAC-2026-A114-M44',
-    bookId: 'book-algo-data',
-    bookTitle: 'Algorithmique Avancée & Structures de Données Complexes',
-    studentEmail: 'etudiant@univ.ac.ma',
-    studentId: 'ETU-2026-9482',
-    issuedAt: '2026-10-06 14:15',
-    status: 'active' as const,
-  },
-  {
-    id: 'lic-3',
-    licenseCode: 'FAC-2026-E552-L99',
-    bookId: 'book-economie-macro',
-    bookTitle: 'Macroéconomie Moderne : Théories, Modèles IS-LM',
-    studentEmail: 'sarah.alami@etu.uae.ac.ma',
-    studentId: 'STU-UAE-2026-1102',
-    issuedAt: '2026-10-05 11:20',
-    status: 'active' as const,
-  },
-  {
-    id: 'lic-4',
-    licenseCode: 'FAC-2026-M789-P30',
-    bookId: 'book-medecine-anat',
-    bookTitle: 'Atlas & Abrégé d\'Anatomie Clinique : Système Cardiovasculaire',
-    studentEmail: 'amine.kabbaj@etu.fmp.ma',
-    studentId: 'STU-FMP-2026-5541',
-    issuedAt: '2026-10-04 18:45',
-    status: 'active' as const,
-  },
-  {
-    id: 'lic-5',
-    licenseCode: 'FAC-2026-L442-A88',
-    bookId: 'book-lettres-arabe',
-    bookTitle: 'Précis de Linguistique & Poétique Arabe : De la Morphosyntaxe à la Rhétorique',
-    studentEmail: 'etudiant@univ.ac.ma',
-    studentId: 'ETU-2026-9482',
-    issuedAt: '2026-10-03 09:10',
-    status: 'active' as const,
-  },
-  {
-    id: 'lic-6',
-    licenseCode: 'FAC-2026-T901-Q15',
-    bookId: 'book-theologie-oussoul',
-    bookTitle: 'Traité Fondamental des Principes de la Religion & Maqasid de la Charia',
-    studentEmail: 'etudiant@univ.ac.ma',
-    studentId: 'ETU-2026-9482',
-    issuedAt: '2026-10-02 16:30',
-    status: 'active' as const,
-  },
-];
+export const INITIAL_DRM_LICENSES: any[] = [];
 
 export const INITIAL_PAYOUT_TRANSACTIONS = [
   {
